@@ -1,0 +1,35 @@
+spring:
+  application.name: "test-service"
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: password
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        temp:
+          use_jdbc_metadata_defaults: false
+        enable_lazy_load_no_trans: true
+        batch_fetch_style: dynamic
+        default_batch_fetch_size: 30
+        jdbc:
+          batch_size: 100
+    database-platform: org.hibernate.dialect.H2Dialect
+    generate-ddl: true
+    hibernate.ddl-auto: create
+
+group:
+  phorus:
+    security:
+      refresh-token-path: /auth/token
+      ignored-paths:
+        - path: /auth/login
+        - path: /user
+          method: POST
+      jwt:
+        issuer: phorus.group
+        encryption:
+          encoded-private-key: "MIG/AgEAMBAGByqGSM49AgEGBSuBBAAiBIGnMIGkAgEBBDCpoZWkEK8LcF2uGOI0abCj/ApvnAJeGPf+yMph+wfedOqhHbclczvNRdagjm0I2RmgBwYFK4EEACKhZANiAAReX6HMEPcJ05T5YCQeSPtz5kNPOlR44cBbZMOXrUwJ1JuyfobpbaJJ9fpW9paoWEy4yNIeYH4T/aplbIktIvTGo41ndJskCtSj26lsGi2llVArDQNttHH4jSyueKVyzBA="
+          encoded-public-key: "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEXl+hzBD3CdOU+WAkHkj7c+ZDTzpUeOHAW2TDl61MCdSbsn6G6W2iSfX6VvaWqFhMuMjSHmB+E/2qZWyJLSL0xqONZ3SbJArUo9upbBotpZVQKw0DbbRx+I0srnilcswQ"
