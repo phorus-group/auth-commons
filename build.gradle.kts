@@ -7,9 +7,9 @@ import java.time.LocalDate
 
 plugins {
     id("org.springframework.boot") version "3.2.5"
-    id("io.spring.dependency-management") version "1.1.5"
-    kotlin("plugin.spring") version "1.9.24"
-    kotlin("jvm") version "1.9.24"
+    id("io.spring.dependency-management") version "1.1.6"
+    kotlin("plugin.spring") version "1.9.25"
+    kotlin("jvm") version "1.9.25"
     id("org.jetbrains.dokka").version("1.9.20")
     id("io.github.gradle-nexus.publish-plugin").version("2.0.0")
     id("com.kageiit.jacobo") version "2.1.0"
@@ -55,9 +55,9 @@ dependencies {
 
     // JWT
     api("org.bouncycastle:bcprov-jdk18on:1.78.1")
-    api("io.jsonwebtoken:jjwt-api:0.12.5")
-    api("io.jsonwebtoken:jjwt-impl:0.12.5")
-    api("io.jsonwebtoken:jjwt-orgjson:0.12.5")
+    api("io.jsonwebtoken:jjwt-api:0.12.6")
+    api("io.jsonwebtoken:jjwt-impl:0.12.6")
+    api("io.jsonwebtoken:jjwt-orgjson:0.12.6")
 
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
