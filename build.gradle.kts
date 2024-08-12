@@ -50,8 +50,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
 
     // Phorus
-    implementation("group.phorus:mapper:1.1.0")
-    implementation("group.phorus:exception-handling:1.0.8")
+    implementation("group.phorus:mapper:1.1.2")
+    implementation("group.phorus:exception-handling:1.0.10")
 
     // JWT
     api("org.bouncycastle:bcprov-jdk18on:1.78.1")
@@ -61,7 +61,7 @@ dependencies {
 
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("group.phorus:test-commons:1.1.0")
+    testImplementation("group.phorus:test-commons:1.1.2")
     testRuntimeOnly("com.h2database:h2")
 }
 
