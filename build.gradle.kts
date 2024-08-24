@@ -51,7 +51,7 @@ dependencies {
 
     // Phorus
     implementation("group.phorus:mapper:1.1.3")
-    implementation("group.phorus:exception-handling:1.0.12")
+    implementation("group.phorus:exception-handling:1.0.13")
 
     // JWT
     api("org.bouncycastle:bcprov-jdk18on:1.78.1")
@@ -61,7 +61,7 @@ dependencies {
 
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("group.phorus:test-commons:1.1.4")
+    testImplementation("group.phorus:test-commons:1.1.5")
     testRuntimeOnly("com.h2database:h2")
 }
 
