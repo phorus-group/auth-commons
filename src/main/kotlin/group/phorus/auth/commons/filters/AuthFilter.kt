@@ -32,7 +32,7 @@ class AuthFilter(
         val method = exchange.request.method
 
         val isIgnoredPath = securityConfiguration.ignoredPaths.any {
-            path.contains(it.path) && (it.method == null || HttpMethod.valueOf(it.method!!) == method)
+            path.startsWith(it.path) && (it.method == null || HttpMethod.valueOf(it.method!!) == method)
         }
         if (isIgnoredPath) {
             return withContext(coroutineContext) {
