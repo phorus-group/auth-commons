@@ -20,7 +20,7 @@ import kotlin.coroutines.coroutineContext
 
 
 @AutoConfiguration
-@ConditionalOnProperty(prefix = "group.phorus.security", name = ["enableFilter"], havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "group.phorus.security", name = ["enableFilter", "enable-filter"], havingValue = "true", matchIfMissing = true)
 class AuthFilter(
     private val securityConfiguration: SecurityConfiguration,
     private val authenticator: Authenticator,
