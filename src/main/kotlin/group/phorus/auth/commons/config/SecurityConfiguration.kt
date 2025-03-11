@@ -7,6 +7,7 @@ import org.springframework.boot.context.properties.NestedConfigurationProperty
 @AutoConfiguration
 @ConfigurationProperties(prefix = "group.phorus.security")
 class SecurityConfiguration(
+    var enableFilter: Boolean? = null,
     var refreshTokenPath: String? = null,
     var ignoredPaths: List<Path> = emptyList(),
 

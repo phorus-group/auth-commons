@@ -10,6 +10,7 @@ import group.phorus.mapper.mapping.extensions.mapTo
 import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.withContext
 import org.springframework.boot.autoconfigure.AutoConfiguration
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.HttpHeaders.AUTHORIZATION
 import org.springframework.http.HttpMethod
 import org.springframework.web.server.CoWebFilter
@@ -19,6 +20,7 @@ import kotlin.coroutines.coroutineContext
 
 
 @AutoConfiguration
+@ConditionalOnProperty(prefix = "group.phorus.security", name = ["enableFilter"], havingValue = "true", matchIfMissing = true)
 class AuthFilter(
     private val securityConfiguration: SecurityConfiguration,
     private val authenticator: Authenticator,
