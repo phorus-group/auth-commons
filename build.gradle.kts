@@ -21,7 +21,7 @@ plugins {
 
 group = "group.phorus"
 description = "Library containing common AuthZ/AuthN logic for Spring based services."
-version = "1.0.8"
+version = "1.0.9"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17

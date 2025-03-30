@@ -5,6 +5,7 @@ import group.phorus.auth.commons.dtos.AccessToken
 import group.phorus.auth.commons.dtos.TokenType
 import group.phorus.auth.commons.services.TokenFactory
 import io.jsonwebtoken.Jwts
+import io.jsonwebtoken.orgjson.io.OrgJsonSerializer
 import io.jsonwebtoken.security.KeyAlgorithm
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.stereotype.Service
@@ -14,6 +15,7 @@ import java.security.PrivateKey
 import java.security.PublicKey
 import java.security.Security
 import java.security.spec.X509EncodedKeySpec
+import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.util.*
@@ -39,13 +41,14 @@ class TokenFactoryImpl(
 
     @Suppress("UNCHECKED_CAST")
     override suspend fun createAccessToken(userId: UUID, privileges: List<String>, properties: Map<String, String>): AccessToken {
-        val currentTime = LocalDateTime.now().toInstant(ZoneOffset.UTC)
+        val currentTime = Instant.now()
 
         val keyBytes = Base64.getDecoder().decode(securityConfiguration.jwt.encryption.encodedPublicKey)
         val keyFactory = KeyFactory.getInstance(securityConfiguration.jwt.encryption.algorithm)
         val publicKey = keyFactory.generatePublic(X509EncodedKeySpec(keyBytes))
 
         val token = Jwts.builder()
+            .json(OrgJsonSerializer())
             .header()
                 .add(ExtraClaims.TYPE, TokenType.ACCESS_TOKEN.name)
             .and()
@@ -84,6 +87,7 @@ class TokenFactoryImpl(
         val publicKey = keyFactory.generatePublic(X509EncodedKeySpec(keyBytes))
 
         return Jwts.builder()
+            .json(OrgJsonSerializer())
             .header()
                 .add(ExtraClaims.TYPE, TokenType.REFRESH_TOKEN.name)
             .and()
