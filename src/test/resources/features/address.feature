@@ -3,12 +3,12 @@ Feature: Address CRUD operations
 
   Background:
     Given the caller has the given User:
-      | name     | email          | password |
-      | testUser | test@email.com | testPass |
+      | name     | email           | password |
+      | testUser | test2@email.com | testPass |
     And the POST "/user" endpoint is called
     And the caller has the given login information:
-      | email          | password | device | expires |
-      | test@email.com | testPass | phone1 | false   |
+      | email           | password | device | expires |
+      | test2@email.com | testPass | phone1 | false   |
     And the POST "/auth/login" endpoint is called
     And the service returns HTTP 200
     And the service returns the AuthResponse
@@ -17,8 +17,8 @@ Feature: Address CRUD operations
       | header | Authorization      | Bearer {accessToken}  |
     Then the service returns HTTP 200
     And the service returns the User:
-      | name     | email          |
-      | testUser | test@email.com |
+      | name     | email           |
+      | testUser | test2@email.com |
 
   Scenario: Caller wants to get an already existing Address by ID
     Given the given Address exists:

@@ -10,7 +10,7 @@ import java.util.*
 class Device(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    var id: UUID = UUID.randomUUID(),
+    var id: UUID? = null,
 
     @Basic(fetch = FetchType.LAZY)
     @Column(nullable = false)

@@ -3,8 +3,8 @@ Feature: Auth operations
 
   Background:
     Given the caller has the given User:
-      | name     | email         | password |
-      | testUser | test@email.com| testPass |
+      | name     | email          | password |
+      | testUser | test@email.com | testPass |
     And the POST "/user" endpoint is called
 
   Scenario: Caller logs in

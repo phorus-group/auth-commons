@@ -20,7 +20,7 @@ class UserServiceImpl(
 ) : UserService {
     override suspend fun create(userDTO: UserDTO): UUID = userDTO.mapTo<User>(functionMappings = mapOf(
         UserDTO::password to ({ password: String -> encoder.encode(password) } to (User::passwordHash to MappingFallback.NULL))
-    ))!!.let { userRepository.save(it) }.id
+    ))!!.let { userRepository.save(it) }.id!!
 
     override suspend fun findById(id: UUID): User = withContext(Dispatchers.IO) {
         userRepository.findById(id).orElseThrow {

@@ -47,7 +47,7 @@ class AuthServiceImpl(
         val jwt = refreshToken.substring(headerPrefix.length)
 
         val authData = authenticator.authenticate(jwt)
-        if (authData.tokenType !== TokenType.REFRESH_TOKEN)
+        if (authData.tokenType != TokenType.REFRESH_TOKEN)
             throw Unauthorized("Invalid refresh token")
 
         val device = withContext(Dispatchers.IO) {
@@ -77,14 +77,14 @@ class AuthServiceImpl(
         val properties = mapOf("tokenThingy" to true.toString())
 
         // We are setting the privileges with "admin" as an example, please take the privileges from a privileges table
-        val accessToken = tokenFactory.createAccessToken(user.id, listOf("admin"), properties)
-        val refreshToken = tokenFactory.createRefreshToken(user.id, loginData.expires, properties)
+        val accessToken = tokenFactory.createAccessToken(user.id!!, listOf("admin"), properties)
+        val refreshToken = tokenFactory.createRefreshToken(user.id!!, loginData.expires, properties)
 
         val accessTokenJTI = authenticator.parseClaims(accessToken.token).payload.id
         val refreshTokenJTI = authenticator.parseClaims(refreshToken).payload.id
 
         withContext(Dispatchers.IO) {
-            deviceRepository.findByNameAndUserId(loginData.device!!, user.id)
+            deviceRepository.findByNameAndUserId(loginData.device!!, user.id!!)
         }.getOrElse {
             Device(
                 name = loginData.device,

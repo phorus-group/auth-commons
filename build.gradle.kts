@@ -6,10 +6,10 @@ import java.net.URL
 import java.time.LocalDate
 
 plugins {
-    id("org.springframework.boot") version "3.2.5"
-    id("io.spring.dependency-management") version "1.1.6"
-    kotlin("plugin.spring") version "1.9.25"
-    kotlin("jvm") version "1.9.25"
+    id("org.springframework.boot").version("3.4.3")
+    id("io.spring.dependency-management").version("1.1.2")
+    kotlin("jvm").version("1.9.0")
+    kotlin("plugin.spring").version("1.9.0")
     id("org.jetbrains.dokka").version("1.9.20")
     id("io.github.gradle-nexus.publish-plugin").version("2.0.0")
     id("com.kageiit.jacobo") version "2.1.0"
@@ -21,7 +21,7 @@ plugins {
 
 group = "group.phorus"
 description = "Library containing common AuthZ/AuthN logic for Spring based services."
-version = "1.0.9"
+version = "1.0.10"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -57,7 +57,7 @@ dependencies {
     api("org.bouncycastle:bcprov-jdk18on:1.78.1")
     api("io.jsonwebtoken:jjwt-api:0.12.6")
     api("io.jsonwebtoken:jjwt-impl:0.12.6")
-    api("io.jsonwebtoken:jjwt-orgjson:0.12.6")
+    api("io.jsonwebtoken:jjwt-jackson:0.12.6")
 
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")

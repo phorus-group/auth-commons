@@ -8,7 +8,7 @@ import java.util.*
 class User(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    var id: UUID = UUID.randomUUID(),
+    var id: UUID? = null,
 
     @Basic(fetch = FetchType.LAZY)
     @Column(nullable = false)

@@ -5,7 +5,6 @@ import group.phorus.auth.commons.dtos.AccessToken
 import group.phorus.auth.commons.dtos.TokenType
 import group.phorus.auth.commons.services.TokenFactory
 import io.jsonwebtoken.Jwts
-import io.jsonwebtoken.orgjson.io.OrgJsonSerializer
 import io.jsonwebtoken.security.KeyAlgorithm
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.stereotype.Service
@@ -48,7 +47,6 @@ class TokenFactoryImpl(
         val publicKey = keyFactory.generatePublic(X509EncodedKeySpec(keyBytes))
 
         val token = Jwts.builder()
-            .json(OrgJsonSerializer())
             .header()
                 .add(ExtraClaims.TYPE, TokenType.ACCESS_TOKEN.name)
             .and()
@@ -87,7 +85,6 @@ class TokenFactoryImpl(
         val publicKey = keyFactory.generatePublic(X509EncodedKeySpec(keyBytes))
 
         return Jwts.builder()
-            .json(OrgJsonSerializer())
             .header()
                 .add(ExtraClaims.TYPE, TokenType.REFRESH_TOKEN.name)
             .and()
