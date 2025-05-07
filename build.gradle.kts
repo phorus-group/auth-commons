@@ -41,7 +41,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-configuration-processor")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 //    implementation("org.springframework.boot:spring-boot-starter-aop")
-    api("org.springframework.security:spring-security-crypto")
+    api("org.springframework.security:spring-security-crypto:6.4.4")
 
     // Kotlin
     implementation(kotlin("reflect"))
