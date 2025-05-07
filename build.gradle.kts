@@ -21,7 +21,7 @@ plugins {
 
 group = "group.phorus"
 description = "Library containing common AuthZ/AuthN logic for Spring based services."
-version = "1.0.10"
+version = "1.0.11"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -32,6 +32,16 @@ java {
 
 repositories {
     mavenCentral()
+}
+
+// Enforce dokka's Jackson version consistency
+// https://github.com/Kotlin/dokka/issues/3472
+configurations.matching { it.name.startsWith("dokka") }.configureEach {
+    resolutionStrategy.eachDependency {
+        if (requested.group.startsWith("com.fasterxml.jackson")) {
+            useVersion("2.15.3")
+        }
+    }
 }
 
 dependencies {
