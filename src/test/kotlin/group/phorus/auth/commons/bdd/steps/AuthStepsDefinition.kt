@@ -12,14 +12,15 @@ import io.cucumber.java.en.Given
 import io.cucumber.java.en.Then
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.security.crypto.scrypt.SCryptPasswordEncoder
 import org.springframework.test.web.reactive.server.expectBody
+import kotlin.collections.set
 
 
 class AuthStepsDefinition(
     @Autowired private val baseScenarioScope: BaseScenarioScope,
     @Autowired private val requestScenarioScope: BaseRequestScenarioScope,
     @Autowired private val responseScenarioScope: BaseResponseScenarioScope,
-    @Autowired private val userRepository: UserRepository,
 ) {
     @Given("the caller has the given login information:")
     fun `the caller has the given login information`(data: DataTable) {

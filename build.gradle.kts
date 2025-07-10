@@ -50,7 +50,6 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-configuration-processor")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-//    implementation("org.springframework.boot:spring-boot-starter-aop")
     api("org.springframework.security:spring-security-crypto:6.4.4")
 
     // Kotlin
@@ -72,6 +71,9 @@ dependencies {
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("group.phorus:test-commons:1.1.5")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:5.3.1")
+    testImplementation("org.wiremock:wiremock-jetty12:3.13.1")
+    testImplementation("io.mockk:mockk:1.14.2")
     testRuntimeOnly("com.h2database:h2")
 }
 

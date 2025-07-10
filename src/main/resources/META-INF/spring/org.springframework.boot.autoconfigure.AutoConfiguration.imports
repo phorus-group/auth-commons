@@ -1,6 +1,15 @@
 group.phorus.auth.commons.config.SecurityConfiguration
 group.phorus.auth.commons.config.UserContextConverter
 group.phorus.auth.commons.config.PasswordEncoderConfig
+group.phorus.auth.commons.config.AuthorizationProperties
 group.phorus.auth.commons.filters.AuthFilter
+group.phorus.auth.commons.filters.HTTPFilter
 group.phorus.auth.commons.services.impl.AuthenticatorImpl
 group.phorus.auth.commons.services.impl.TokenFactoryImpl
+group.phorus.auth.commons.services.impl.AuthorizationReferenceProcessor
+group.phorus.auth.commons.services.impl.ObjectProcessor
+group.phorus.auth.commons.authorization.context.AuthContextProvider
+group.phorus.auth.commons.authorization.context.HTTPRequestContextProvider
+group.phorus.auth.commons.authorization.handler.rest.RestHandlerProcessorProcessor
+group.phorus.auth.commons.authorization.interceptor.AuthorizationHibernateInterceptor
+group.phorus.auth.commons.config.HibernateInterceptorCustomizer
