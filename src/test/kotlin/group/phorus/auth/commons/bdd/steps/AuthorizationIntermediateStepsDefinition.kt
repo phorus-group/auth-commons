@@ -1,26 +1,15 @@
 package group.phorus.auth.commons.bdd.steps
 
-/**
- * Step definitions for core authorization functionality.
- * 
- * Tests:
- * - Multiple @Authorization annotations with priority ordering
- * - AuthorizationMode.AND and OR logic
- * - Field-level authorization inheritance and restrictions
- * - Operation-specific authorization (CREATE/READ/UPDATE/DELETE)
- * - Empty authorization and empty definitions
- */
-
 import group.phorus.auth.commons.bdd.app.dtos.AddressResponse
 import group.phorus.auth.commons.bdd.app.dtos.DocumentDTO
 import group.phorus.auth.commons.bdd.app.dtos.DocumentResponse
 import group.phorus.auth.commons.bdd.app.model.Address
 import group.phorus.auth.commons.bdd.app.model.Document
+import group.phorus.auth.commons.bdd.app.model.User
 import group.phorus.auth.commons.bdd.app.repositories.AddressRepository
 import group.phorus.auth.commons.bdd.app.repositories.DocumentRepository
 import group.phorus.auth.commons.bdd.app.repositories.UserRepository
-import group.phorus.auth.commons.context.AuthContext
-import group.phorus.auth.commons.dtos.AuthContextData
+import group.phorus.auth.commons.services.TokenFactory
 import group.phorus.mapper.mapping.extensions.mapTo
 import group.phorus.test.commons.bdd.BaseRequestScenarioScope
 import group.phorus.test.commons.bdd.BaseResponseScenarioScope
@@ -28,6 +17,7 @@ import group.phorus.test.commons.bdd.BaseScenarioScope
 import io.cucumber.datatable.DataTable
 import io.cucumber.java.en.Given
 import io.cucumber.java.en.Then
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.test.web.reactive.server.expectBody
@@ -40,7 +30,39 @@ class AuthorizationIntermediateStepsDefinition(
     @Autowired private val documentRepository: DocumentRepository,
     @Autowired private val addressRepository: AddressRepository,
     @Autowired private val userRepository: UserRepository,
+    @Autowired private val tokenFactory: TokenFactory,
 ) {
+
+    @Given("the caller is not owner but has admin privilege")
+    fun `the caller is not owner but has admin privilege`() {
+        runBlocking {
+            // Create a different user to be the document owner
+            val differentUser = User(
+                name = "Different User",
+                email = "different@email.com",
+                passwordHash = "hashedPassword"
+            )
+            val savedDifferentUser = userRepository.saveAndFlush(differentUser)
+            baseScenarioScope.objects["differentUser"] = savedDifferentUser.id!!.toString()
+
+            // Create admin access token for current test user
+            val currentUserId = UUID.fromString(baseScenarioScope.objects["userId"] as String)
+            val privileges = listOf("admin")
+            val properties = mapOf(
+                "name" to "Admin Test User",
+                "email" to "coretest@email.com"
+            )
+
+            val accessToken = tokenFactory.createAccessToken(
+                userId = currentUserId,
+                privileges = privileges,
+                properties = properties
+            )
+
+            baseScenarioScope.objects["accessToken"] = "Bearer ${accessToken.token}"
+        }
+    }
+
     @Given("the given Document exists with multiple authorization levels:")
     fun `the given Document exists with multiple authorization levels`(data: DataTable) {
         val differentUserId = baseScenarioScope.objects["differentUser"] as String
@@ -60,13 +82,23 @@ class AuthorizationIntermediateStepsDefinition(
 
     @Given("the caller has finance privilege and department")
     fun `the caller has finance privilege and department`() {
-        val currentAuth = AuthContext.context.get()
-        val modifiedAuth = AuthContextData(
-            userId = currentAuth.userId,
-            privileges = currentAuth.privileges + "finance:read",
-            properties = currentAuth.properties + ("department" to "finance")
-        )
-        AuthContext.context.set(modifiedAuth)
+        runBlocking {
+            val currentUserId = UUID.fromString(baseScenarioScope.objects["userId"] as String)
+            val privileges = listOf("finance:read")
+            val properties = mapOf(
+                "department" to "finance",
+                "name" to "Finance User",
+                "email" to "coretest@email.com"
+            )
+
+            val accessToken = tokenFactory.createAccessToken(
+                userId = currentUserId,
+                privileges = privileges,
+                properties = properties
+            )
+
+            baseScenarioScope.objects["accessToken"] = "Bearer ${accessToken.token}"
+        }
     }
 
     @Given("the given Document exists with financial data:")
@@ -90,24 +122,43 @@ class AuthorizationIntermediateStepsDefinition(
 
     @Given("the caller has finance privilege but wrong department")
     fun `the caller has finance privilege but wrong department`() {
-        val currentAuth = AuthContext.context.get()
-        val modifiedAuth = AuthContextData(
-            userId = currentAuth.userId,
-            privileges = currentAuth.privileges + "finance:read",
-            properties = currentAuth.properties + ("department" to "hr")
-        )
-        AuthContext.context.set(modifiedAuth)
+        runBlocking {
+            val currentUserId = UUID.fromString(baseScenarioScope.objects["userId"] as String)
+            val privileges = listOf("finance:read")
+            val properties = mapOf(
+                "department" to "hr",
+                "name" to "HR User",
+                "email" to "coretest@email.com"
+            )
+
+            val accessToken = tokenFactory.createAccessToken(
+                userId = currentUserId,
+                privileges = privileges,
+                properties = properties
+            )
+
+            baseScenarioScope.objects["accessToken"] = "Bearer ${accessToken.token}"
+        }
     }
 
     @Given("the caller owns document but lacks field privilege")
     fun `the caller owns document but lacks field privilege`() {
-        val currentAuth = AuthContext.context.get()
-        val modifiedAuth = AuthContextData(
-            userId = currentAuth.userId,
-            privileges = listOf("basic:user"), // No special:field privilege
-            properties = currentAuth.properties
-        )
-        AuthContext.context.set(modifiedAuth)
+        runBlocking {
+            val currentUserId = UUID.fromString(baseScenarioScope.objects["userId"] as String)
+            val privileges = listOf("basic:user") // No special:field privilege
+            val properties = mapOf(
+                "name" to "Basic User",
+                "email" to "coretest@email.com"
+            )
+
+            val accessToken = tokenFactory.createAccessToken(
+                userId = currentUserId,
+                privileges = privileges,
+                properties = properties
+            )
+
+            baseScenarioScope.objects["accessToken"] = "Bearer ${accessToken.token}"
+        }
     }
 
     @Given("the given Document exists with field authorization:")
@@ -131,13 +182,22 @@ class AuthorizationIntermediateStepsDefinition(
 
     @Given("the caller has read-only privileges")
     fun `the caller has read-only privileges`() {
-        val currentAuth = AuthContext.context.get()
-        val modifiedAuth = AuthContextData(
-            userId = currentAuth.userId,
-            privileges = listOf("read:documents"),
-            properties = currentAuth.properties
-        )
-        AuthContext.context.set(modifiedAuth)
+        runBlocking {
+            val currentUserId = UUID.fromString(baseScenarioScope.objects["userId"] as String)
+            val privileges = listOf("read:documents")
+            val properties = mapOf(
+                "name" to "Reader User",
+                "email" to "coretest@email.com"
+            )
+
+            val accessToken = tokenFactory.createAccessToken(
+                userId = currentUserId,
+                privileges = privileges,
+                properties = properties
+            )
+
+            baseScenarioScope.objects["accessToken"] = "Bearer ${accessToken.token}"
+        }
     }
 
     @Given("the given Document exists for operation testing:")
@@ -172,13 +232,22 @@ class AuthorizationIntermediateStepsDefinition(
 
     @Given("the caller has minimal privileges")
     fun `the caller has minimal privileges`() {
-        val currentAuth = AuthContext.context.get()
-        val modifiedAuth = AuthContextData(
-            userId = currentAuth.userId,
-            privileges = listOf("basic:user"),
-            properties = currentAuth.properties
-        )
-        AuthContext.context.set(modifiedAuth)
+        runBlocking {
+            val currentUserId = UUID.fromString(baseScenarioScope.objects["userId"] as String)
+            val privileges = listOf("basic:user")
+            val properties = mapOf(
+                "name" to "Minimal User",
+                "email" to "coretest@email.com"
+            )
+
+            val accessToken = tokenFactory.createAccessToken(
+                userId = currentUserId,
+                privileges = privileges,
+                properties = properties
+            )
+
+            baseScenarioScope.objects["accessToken"] = "Bearer ${accessToken.token}"
+        }
     }
 
     @Given("the given Address exists with no authorization:")
@@ -200,13 +269,22 @@ class AuthorizationIntermediateStepsDefinition(
 
     @Given("the caller has manager role but not admin")
     fun `the caller has manager role but not admin`() {
-        val currentAuth = AuthContext.context.get()
-        val modifiedAuth = AuthContextData(
-            userId = currentAuth.userId,
-            privileges = listOf("manager"),
-            properties = currentAuth.properties
-        )
-        AuthContext.context.set(modifiedAuth)
+        runBlocking {
+            val currentUserId = UUID.fromString(baseScenarioScope.objects["userId"] as String)
+            val privileges = listOf("manager")
+            val properties = mapOf(
+                "name" to "Manager User",
+                "email" to "coretest@email.com"
+            )
+
+            val accessToken = tokenFactory.createAccessToken(
+                userId = currentUserId,
+                privileges = privileges,
+                properties = properties
+            )
+
+            baseScenarioScope.objects["accessToken"] = "Bearer ${accessToken.token}"
+        }
     }
 
     @Given("the given Document exists with multiple field annotations:")
@@ -227,17 +305,6 @@ class AuthorizationIntermediateStepsDefinition(
         baseScenarioScope.objects["documentId"] = savedDocument.id!!.toString()
     }
 
-    @Given("the caller has create privileges and field access")
-    fun `the caller has create privileges and field access`() {
-        val currentAuth = AuthContext.context.get()
-        val modifiedAuth = AuthContextData(
-            userId = currentAuth.userId,
-            privileges = currentAuth.privileges + "admin", // Admin has all access
-            properties = currentAuth.properties
-        )
-        AuthContext.context.set(modifiedAuth)
-    }
-
     @Given("the caller has the given Document for creation:")
     fun `the caller has the given Document for creation`(data: DataTable) {
         val document = data.asMaps().first().let {
@@ -248,17 +315,6 @@ class AuthorizationIntermediateStepsDefinition(
             )
         }
         requestScenarioScope.request = document
-    }
-
-    @Given("the caller has delete privileges")
-    fun `the caller has delete privileges`() {
-        val currentAuth = AuthContext.context.get()
-        val modifiedAuth = AuthContextData(
-            userId = currentAuth.userId,
-            privileges = currentAuth.privileges + "admin", // Admin can delete
-            properties = currentAuth.properties
-        )
-        AuthContext.context.set(modifiedAuth)
     }
 
     @Given("the given Document exists for deletion:")
@@ -280,13 +336,22 @@ class AuthorizationIntermediateStepsDefinition(
 
     @Given("the caller has no special privileges")
     fun `the caller has no special privileges`() {
-        val currentAuth = AuthContext.context.get()
-        val modifiedAuth = AuthContextData(
-            userId = currentAuth.userId,
-            privileges = listOf("basic:user"),
-            properties = currentAuth.properties
-        )
-        AuthContext.context.set(modifiedAuth)
+        runBlocking {
+            val currentUserId = UUID.fromString(baseScenarioScope.objects["userId"] as String)
+            val privileges = listOf("basic:user")
+            val properties = mapOf(
+                "name" to "Basic User",
+                "email" to "coretest@email.com"
+            )
+
+            val accessToken = tokenFactory.createAccessToken(
+                userId = currentUserId,
+                privileges = privileges,
+                properties = properties
+            )
+
+            baseScenarioScope.objects["accessToken"] = "Bearer ${accessToken.token}"
+        }
     }
 
     @Given("the given Document exists with empty definitions:")

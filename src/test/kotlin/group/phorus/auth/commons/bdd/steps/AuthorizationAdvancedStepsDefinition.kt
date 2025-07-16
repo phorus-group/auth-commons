@@ -1,67 +1,154 @@
 package group.phorus.auth.commons.bdd.steps
 
-/**
- * Step definitions for advanced authorization features.
- * 
- * Tests:
- * - Context resolution (auth::, httpRequest::, entity::, custom contexts)
- * - Value and matches logic combinations
- * - REST handlers with different HTTP methods and configurations
- * - Custom handlers (DatabasePermissionHandler, ValidationHandler)
- * - Template variable resolution and error handling
- * - Handler chaining and response contexts
- */
-
 import com.github.tomakehurst.wiremock.client.WireMock
 import com.github.tomakehurst.wiremock.http.ContentTypeHeader
 import group.phorus.auth.commons.bdd.app.dtos.DocumentResponse
 import group.phorus.auth.commons.bdd.app.model.Document
 import group.phorus.auth.commons.bdd.app.repositories.DocumentRepository
-import group.phorus.auth.commons.context.AuthContext
-import group.phorus.auth.commons.context.HTTPContext
-import group.phorus.auth.commons.dtos.AuthContextData
-import group.phorus.auth.commons.dtos.HTTPContextData
+import group.phorus.auth.commons.services.TokenFactory
 import group.phorus.mapper.mapping.extensions.mapTo
 import group.phorus.test.commons.bdd.BaseResponseScenarioScope
 import group.phorus.test.commons.bdd.BaseScenarioScope
 import io.cucumber.datatable.DataTable
 import io.cucumber.java.en.Given
 import io.cucumber.java.en.Then
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.http.HttpMethod
 import org.springframework.test.web.reactive.server.expectBody
-import java.time.Instant
 import java.util.*
 
 class AuthorizationAdvancedStepsDefinition(
     @Autowired private val baseScenarioScope: BaseScenarioScope,
     @Autowired private val responseScenarioScope: BaseResponseScenarioScope,
     @Autowired private val documentRepository: DocumentRepository,
+    @Autowired private val tokenFactory: TokenFactory,
 ) {
+    @Given("the caller has database and validation setup")
+    fun `the caller has database and validation setup`() {
+        runBlocking {
+            val currentUserId = UUID.fromString(baseScenarioScope.objects["userId"] as String)
+            val privileges = listOf("admin", "validation:access")
+            val properties = mapOf(
+                "name" to "Advanced Test User",
+                "email" to "advancedtest@email.com",
+                "userAgent" to "TestAgent/1.0"
+            )
+
+            val accessToken = tokenFactory.createAccessToken(
+                userId = currentUserId,
+                privileges = privileges,
+                properties = properties
+            )
+
+            baseScenarioScope.objects["accessToken"] = "Bearer ${accessToken.token}"
+        }
+    }
+
+    @Given("the caller has handler configuration with errors")
+    fun `the caller has handler configuration with errors`() {
+        runBlocking {
+            val currentUserId = UUID.fromString(baseScenarioScope.objects["userId"] as String)
+            val privileges = listOf("admin")
+            val properties = mapOf(
+                "simulateError" to "true",
+                "name" to "Advanced Test User",
+                "email" to "advancedtest@email.com"
+            )
+
+            val accessToken = tokenFactory.createAccessToken(
+                userId = currentUserId,
+                privileges = privileges,
+                properties = properties
+            )
+
+            baseScenarioScope.objects["accessToken"] = "Bearer ${accessToken.token}"
+        }
+
+        // Setup REST handler precedence
+        val docId = baseScenarioScope.objects["documentId"] as? String ?: "test-doc-id"
+        AuthorizationStepsDefinition.wireMockServer.stubFor(
+            WireMock.get(WireMock.urlMatching("/api/precedence/.*"))
+                .willReturn(
+                    WireMock.aResponse()
+                        .withStatus(200)
+                        .withHeader(ContentTypeHeader.KEY, "application/json")
+                        .withBody("""{"result": "rest-wins"}""")
+                )
+        )
+    }
+
+    @Given("the caller has handler setup without validation")
+    fun `the caller has handler setup without validation`() {
+        runBlocking {
+            val currentUserId = UUID.fromString(baseScenarioScope.objects["userId"] as String)
+            val privileges = listOf("admin")
+            val properties = mapOf(
+                "name" to "Advanced Test User",
+                "email" to "advancedtest@email.com"
+            )
+
+            val accessToken = tokenFactory.createAccessToken(
+                userId = currentUserId,
+                privileges = privileges,
+                properties = properties
+            )
+
+            baseScenarioScope.objects["accessToken"] = "Bearer ${accessToken.token}"
+        }
+
+        // Setup various handler responses
+        AuthorizationStepsDefinition.wireMockServer.stubFor(
+            WireMock.get(WireMock.urlMatching("/api/setup/.*"))
+                .willReturn(
+                    WireMock.aResponse()
+                        .withStatus(200)
+                        .withHeader(ContentTypeHeader.KEY, "application/json")
+                        .withBody("""{"setup": "completed"}""")
+                )
+        )
+
+        AuthorizationStepsDefinition.wireMockServer.stubFor(
+            WireMock.get(WireMock.urlMatching("/api/response/.*"))
+                .willReturn(
+                    WireMock.aResponse()
+                        .withStatus(200)
+                        .withHeader(ContentTypeHeader.KEY, "application/json")
+                        .withBody("""{"data": "allowed"}""")
+                )
+        )
+
+        AuthorizationStepsDefinition.wireMockServer.stubFor(
+            WireMock.get(WireMock.urlMatching("/api/handler/.*"))
+                .willReturn(
+                    WireMock.aResponse()
+                        .withStatus(200)
+                        .withHeader(ContentTypeHeader.KEY, "application/json")
+                        .withBody("""{"result": "success"}""")
+                )
+        )
+    }
 
     @Given("the caller has context setup with organization data")
     fun `the caller has context setup with organization data`() {
-        val currentAuth = AuthContext.context.get()
-        val modifiedAuth = AuthContextData(
-            userId = currentAuth.userId,
-            privileges = currentAuth.privileges + listOf("admin", "exists"),
-            properties = currentAuth.properties + mapOf(
+        runBlocking {
+            val currentUserId = UUID.fromString(baseScenarioScope.objects["userId"] as String)
+            val privileges = listOf("admin", "exists")
+            val properties = mapOf(
                 "organizationId" to "test-org-123",
-                "department" to "engineering"
+                "department" to "engineering",
+                "name" to "Advanced Test User",
+                "email" to "advancedtest@email.com"
             )
-        )
-        AuthContext.context.set(modifiedAuth)
 
-        val httpContext = HTTPContextData(
-            path = "/document",
-            method = HttpMethod.GET,
-            headers = emptyMap(),
-            queryParams = emptyMap(),
-            remoteAddress = "127.0.0.1",
-            timestamp = Instant.now()
-        )
-        HTTPContext.context.set(httpContext)
+            val accessToken = tokenFactory.createAccessToken(
+                userId = currentUserId,
+                privileges = privileges,
+                properties = properties
+            )
+
+            baseScenarioScope.objects["accessToken"] = "Bearer ${accessToken.token}"
+        }
     }
 
     @Given("the given Document exists with context fields:")
@@ -87,13 +174,22 @@ class AuthorizationAdvancedStepsDefinition(
 
     @Given("the caller has varied privilege levels")
     fun `the caller has varied privilege levels`() {
-        val currentAuth = AuthContext.context.get()
-        val modifiedAuth = AuthContextData(
-            userId = currentAuth.userId,
-            privileges = listOf("admin", "manager", "exists"),
-            properties = currentAuth.properties
-        )
-        AuthContext.context.set(modifiedAuth)
+        runBlocking {
+            val currentUserId = UUID.fromString(baseScenarioScope.objects["userId"] as String)
+            val privileges = listOf("admin", "manager", "exists")
+            val properties = mapOf(
+                "name" to "Advanced Test User",
+                "email" to "advancedtest@email.com"
+            )
+
+            val accessToken = tokenFactory.createAccessToken(
+                userId = currentUserId,
+                privileges = privileges,
+                properties = properties
+            )
+
+            baseScenarioScope.objects["accessToken"] = "Bearer ${accessToken.token}"
+        }
     }
 
     @Given("the given Document exists with value matches tests:")
@@ -118,8 +214,6 @@ class AuthorizationAdvancedStepsDefinition(
 
     @Given("the external service supports all HTTP methods")
     fun `the external service supports all HTTP methods`() {
-        val userId = baseScenarioScope.objects["userId"] as String
-
         // GET handler
         AuthorizationStepsDefinition.wireMockServer.stubFor(
             WireMock.get(WireMock.urlMatching("/api/permissions/get/.*/.*"))
@@ -219,28 +313,6 @@ class AuthorizationAdvancedStepsDefinition(
         baseScenarioScope.objects["documentId"] = savedDocument.id!!.toString()
     }
 
-    @Given("the caller has database and validation setup")
-    fun `the caller has database and validation setup`() {
-        val currentAuth = AuthContext.context.get()
-        val modifiedAuth = AuthContextData(
-            userId = currentAuth.userId,
-            privileges = currentAuth.privileges + listOf("admin", "validation:access"),
-            properties = currentAuth.properties
-        )
-        AuthContext.context.set(modifiedAuth)
-
-        val httpContext = HTTPContextData(
-            path = "/document",
-            method = HttpMethod.GET,
-            headers = emptyMap(),
-            queryParams = emptyMap(),
-            remoteAddress = "10.0.1.100",
-            timestamp = Instant.now(),
-            userAgent = "TestAgent/1.0"
-        )
-        HTTPContext.context.set(httpContext)
-    }
-
     @Given("the given Document exists with custom handler fields:")
     fun `the given Document exists with custom handler fields`(data: DataTable) {
         val userId = (baseScenarioScope.objects["userId"] as String).let { UUID.fromString(it) }
@@ -259,29 +331,6 @@ class AuthorizationAdvancedStepsDefinition(
         val savedDocument = documentRepository.saveAndFlush(document)
         baseScenarioScope.objects["documentResponse"] = savedDocument.mapTo<DocumentResponse>()!!
         baseScenarioScope.objects["documentId"] = savedDocument.id!!.toString()
-    }
-
-    @Given("the caller has handler configuration with errors")
-    fun `the caller has handler configuration with errors`() {
-        val currentAuth = AuthContext.context.get()
-        val modifiedAuth = AuthContextData(
-            userId = currentAuth.userId,
-            privileges = listOf("admin"),
-            properties = currentAuth.properties + ("simulateError" to "true")
-        )
-        AuthContext.context.set(modifiedAuth)
-
-        // Setup REST handler precedence
-        val docId = baseScenarioScope.objects["documentId"] as? String ?: "test-doc-id"
-        AuthorizationStepsDefinition.wireMockServer.stubFor(
-            WireMock.get(WireMock.urlMatching("/api/precedence/.*"))
-                .willReturn(
-                    WireMock.aResponse()
-                        .withStatus(200)
-                        .withHeader(ContentTypeHeader.KEY, "application/json")
-                        .withBody("""{"result": "rest-wins"}""")
-                )
-        )
     }
 
     @Given("the given Document exists with handler error tests:")
@@ -306,15 +355,23 @@ class AuthorizationAdvancedStepsDefinition(
 
     @Given("the caller has template test setup")
     fun `the caller has template test setup`() {
-        val currentAuth = AuthContext.context.get()
-        val modifiedAuth = AuthContextData(
-            userId = currentAuth.userId,
-            privileges = currentAuth.privileges,
-            properties = currentAuth.properties + mapOf(
-                "nested/${currentAuth.userId}/value" to "nested-test"
+        runBlocking {
+            val currentUserId = UUID.fromString(baseScenarioScope.objects["userId"] as String)
+            val privileges = listOf("admin")
+            val properties = mapOf(
+                "nested/${currentUserId}/value" to "nested-test",
+                "name" to "Advanced Test User",
+                "email" to "advancedtest@email.com"
             )
-        )
-        AuthContext.context.set(modifiedAuth)
+
+            val accessToken = tokenFactory.createAccessToken(
+                userId = currentUserId,
+                privileges = privileges,
+                properties = properties
+            )
+
+            baseScenarioScope.objects["accessToken"] = "Bearer ${accessToken.token}"
+        }
     }
 
     @Given("the given Document exists with template edge cases:")
@@ -339,16 +396,24 @@ class AuthorizationAdvancedStepsDefinition(
 
     @Given("the caller has organization context with priority setup")
     fun `the caller has organization context with priority setup`() {
-        val currentAuth = AuthContext.context.get()
-        val modifiedAuth = AuthContextData(
-            userId = currentAuth.userId,
-            privileges = currentAuth.privileges + listOf("org:access", "role:manager"),
-            properties = currentAuth.properties + mapOf(
+        runBlocking {
+            val currentUserId = UUID.fromString(baseScenarioScope.objects["userId"] as String)
+            val privileges = listOf("org:access", "role:manager")
+            val properties = mapOf(
                 "organizationId" to "test-org-456",
-                "department" to "engineering"
+                "department" to "engineering",
+                "name" to "Advanced Test User",
+                "email" to "advancedtest@email.com"
             )
-        )
-        AuthContext.context.set(modifiedAuth)
+
+            val accessToken = tokenFactory.createAccessToken(
+                userId = currentUserId,
+                privileges = privileges,
+                properties = properties
+            )
+
+            baseScenarioScope.objects["accessToken"] = "Bearer ${accessToken.token}"
+        }
     }
 
     @Given("the given Document exists with organization context:")
@@ -369,48 +434,6 @@ class AuthorizationAdvancedStepsDefinition(
         val savedDocument = documentRepository.saveAndFlush(document)
         baseScenarioScope.objects["documentResponse"] = savedDocument.mapTo<DocumentResponse>()!!
         baseScenarioScope.objects["documentId"] = savedDocument.id!!.toString()
-    }
-
-    @Given("the caller has handler setup without validation")
-    fun `the caller has handler setup without validation`() {
-        val currentAuth = AuthContext.context.get()
-        val modifiedAuth = AuthContextData(
-            userId = currentAuth.userId,
-            privileges = currentAuth.privileges + "admin",
-            properties = currentAuth.properties
-        )
-        AuthContext.context.set(modifiedAuth)
-
-        // Setup various handler responses
-        AuthorizationStepsDefinition.wireMockServer.stubFor(
-            WireMock.get(WireMock.urlMatching("/api/setup/.*"))
-                .willReturn(
-                    WireMock.aResponse()
-                        .withStatus(200)
-                        .withHeader(ContentTypeHeader.KEY, "application/json")
-                        .withBody("""{"setup": "completed"}""")
-                )
-        )
-
-        AuthorizationStepsDefinition.wireMockServer.stubFor(
-            WireMock.get(WireMock.urlMatching("/api/response/.*"))
-                .willReturn(
-                    WireMock.aResponse()
-                        .withStatus(200)
-                        .withHeader(ContentTypeHeader.KEY, "application/json")
-                        .withBody("""{"data": "allowed"}""")
-                )
-        )
-
-        AuthorizationStepsDefinition.wireMockServer.stubFor(
-            WireMock.get(WireMock.urlMatching("/api/handler/.*"))
-                .willReturn(
-                    WireMock.aResponse()
-                        .withStatus(200)
-                        .withHeader(ContentTypeHeader.KEY, "application/json")
-                        .withBody("""{"result": "success"}""")
-                )
-        )
     }
 
     @Given("the given Document exists with handler contexts:")
@@ -435,13 +458,22 @@ class AuthorizationAdvancedStepsDefinition(
 
     @Given("the caller has standard privileges")
     fun `the caller has standard privileges`() {
-        val currentAuth = AuthContext.context.get()
-        val modifiedAuth = AuthContextData(
-            userId = currentAuth.userId,
-            privileges = listOf("user:standard"),
-            properties = currentAuth.properties
-        )
-        AuthContext.context.set(modifiedAuth)
+        runBlocking {
+            val currentUserId = UUID.fromString(baseScenarioScope.objects["userId"] as String)
+            val privileges = listOf("user:standard")
+            val properties = mapOf(
+                "name" to "Advanced Test User",
+                "email" to "advancedtest@email.com"
+            )
+
+            val accessToken = tokenFactory.createAccessToken(
+                userId = currentUserId,
+                privileges = privileges,
+                properties = properties
+            )
+
+            baseScenarioScope.objects["accessToken"] = "Bearer ${accessToken.token}"
+        }
     }
 
     @Given("the given Document exists with invalid contexts:")
@@ -463,7 +495,7 @@ class AuthorizationAdvancedStepsDefinition(
         baseScenarioScope.objects["documentId"] = savedDocument.id!!.toString()
     }
 
-    // THEN steps
+    // THEN steps (keeping all existing THEN steps)
     @Then("all context fields should be accessible")
     fun `all context fields should be accessible`() {
         val documentResponse = responseScenarioScope.responseSpec!!

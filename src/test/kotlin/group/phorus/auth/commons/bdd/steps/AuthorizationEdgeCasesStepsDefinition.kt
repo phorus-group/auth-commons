@@ -9,8 +9,7 @@ import group.phorus.auth.commons.bdd.app.model.Document
 import group.phorus.auth.commons.bdd.app.repositories.AddressRepository
 import group.phorus.auth.commons.bdd.app.repositories.DocumentRepository
 import group.phorus.auth.commons.bdd.app.repositories.UserRepository
-import group.phorus.auth.commons.context.AuthContext
-import group.phorus.auth.commons.dtos.AuthContextData
+import group.phorus.auth.commons.services.TokenFactory
 import group.phorus.mapper.mapping.extensions.mapTo
 import group.phorus.test.commons.bdd.BaseRequestScenarioScope
 import group.phorus.test.commons.bdd.BaseResponseScenarioScope
@@ -19,6 +18,7 @@ import io.cucumber.datatable.DataTable
 import io.cucumber.java.en.Given
 import io.cucumber.java.en.Then
 import io.cucumber.java.en.When
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.test.web.reactive.server.expectBody
@@ -33,11 +33,13 @@ class AuthorizationEdgeCasesStepsDefinition(
     @Autowired private val documentRepository: DocumentRepository,
     @Autowired private val addressRepository: AddressRepository,
     @Autowired private val userRepository: UserRepository,
+    @Autowired private val tokenFactory: TokenFactory,
 ) {
 
     @Given("the authentication context is cleared")
     fun `the authentication context is cleared`() {
-        AuthContext.context.remove()
+        // Remove access token to simulate missing authentication
+        baseScenarioScope.objects.remove("accessToken")
         baseScenarioScope.objects["authCleared"] = true
     }
 
@@ -54,17 +56,6 @@ class AuthorizationEdgeCasesStepsDefinition(
         val savedDocument = documentRepository.saveAndFlush(document)
         baseScenarioScope.objects["documentResponse"] = savedDocument.mapTo<DocumentResponse>()!!
         baseScenarioScope.objects["documentId"] = savedDocument.id!!.toString()
-    }
-
-    @Given("the caller has standard access")
-    fun `the caller has standard access`() {
-        val currentAuth = AuthContext.context.get()
-        val modifiedAuth = AuthContextData(
-            userId = currentAuth.userId,
-            privileges = currentAuth.privileges + "admin",
-            properties = currentAuth.properties
-        )
-        AuthContext.context.set(modifiedAuth)
     }
 
     @Given("the given Document exists with null fields and circular refs:")
@@ -93,15 +84,44 @@ class AuthorizationEdgeCasesStepsDefinition(
         baseScenarioScope.objects["databaseUnstable"] = true
     }
 
+    @Given("the caller has standard access")
+    fun `the caller has standard access`() {
+        runBlocking {
+            val currentUserId = UUID.fromString(baseScenarioScope.objects["userId"] as String)
+            val privileges = listOf("admin")
+            val properties = mapOf(
+                "name" to "Edge Test User",
+                "email" to "edgetest@email.com"
+            )
+
+            val accessToken = tokenFactory.createAccessToken(
+                userId = currentUserId,
+                privileges = privileges,
+                properties = properties
+            )
+
+            baseScenarioScope.objects["accessToken"] = "Bearer ${accessToken.token}"
+        }
+    }
+
     @Given("the caller has transactional document creation setup")
     fun `the caller has transactional document creation setup`() {
-        val currentAuth = AuthContext.context.get()
-        val modifiedAuth = AuthContextData(
-            userId = currentAuth.userId,
-            privileges = currentAuth.privileges + "admin",
-            properties = currentAuth.properties
-        )
-        AuthContext.context.set(modifiedAuth)
+        runBlocking {
+            val currentUserId = UUID.fromString(baseScenarioScope.objects["userId"] as String)
+            val privileges = listOf("admin")
+            val properties = mapOf(
+                "name" to "Edge Test User",
+                "email" to "edgetest@email.com"
+            )
+
+            val accessToken = tokenFactory.createAccessToken(
+                userId = currentUserId,
+                privileges = privileges,
+                properties = properties
+            )
+
+            baseScenarioScope.objects["accessToken"] = "Bearer ${accessToken.token}"
+        }
         baseScenarioScope.objects["transactionTest"] = true
     }
 
@@ -242,14 +262,23 @@ class AuthorizationEdgeCasesStepsDefinition(
     fun `the caller has potential security attack vectors`(data: DataTable) {
         val attacks = data.asMaps()
         baseScenarioScope.objects["attackVectors"] = attacks
-        
-        val currentAuth = AuthContext.context.get()
-        val modifiedAuth = AuthContextData(
-            userId = currentAuth.userId,
-            privileges = listOf("basic:user"),
-            properties = currentAuth.properties
-        )
-        AuthContext.context.set(modifiedAuth)
+
+        runBlocking {
+            val currentUserId = UUID.fromString(baseScenarioScope.objects["userId"] as String)
+            val privileges = listOf("basic:user")
+            val properties = mapOf(
+                "name" to "Edge Test User",
+                "email" to "edgetest@email.com"
+            )
+
+            val accessToken = tokenFactory.createAccessToken(
+                userId = currentUserId,
+                privileges = privileges,
+                properties = properties
+            )
+
+            baseScenarioScope.objects["accessToken"] = "Bearer ${accessToken.token}"
+        }
     }
 
     @Given("the given Document exists with security test fields:")
@@ -352,12 +381,12 @@ class AuthorizationEdgeCasesStepsDefinition(
         baseScenarioScope.objects["contextResolutionPerformed"] = true
     }
 
-    // THEN steps
+    // THEN steps (keeping all existing ones)
     @Then("null fields should be handled gracefully")
     fun `null fields should be handled gracefully`() {
         val documentResponse = responseScenarioScope.responseSpec!!
             .expectBody<DocumentResponse>().returnResult().responseBody!!
-        
+
         assertNotNull(documentResponse.id)
         // Null fields don't cause exceptions
     }
@@ -366,7 +395,7 @@ class AuthorizationEdgeCasesStepsDefinition(
     fun `circular references should not cause infinite loops`() {
         val documentResponse = responseScenarioScope.responseSpec!!
             .expectBody<DocumentResponse>().returnResult().responseBody!!
-        
+
         assertNotNull(documentResponse.circularRefField)
         // If we get here, no infinite loop occurred
     }
@@ -375,7 +404,7 @@ class AuthorizationEdgeCasesStepsDefinition(
     fun `deep nesting should complete within time limits`() {
         val startTime = baseScenarioScope.objects["startTime"] as Long
         val duration = System.currentTimeMillis() - startTime
-        
+
         assertTrue(duration < 5000, "Deep nesting took too long: ${duration}ms")
     }
 
@@ -452,7 +481,7 @@ class AuthorizationEdgeCasesStepsDefinition(
     fun `lazy loading should work correctly with authorization`() {
         val addressResponse = responseScenarioScope.responseSpec!!
             .expectBody<AddressResponse>().returnResult().responseBody!!
-        
+
         assertNotNull(addressResponse.address)
         val lazyLoadingEnabled = baseScenarioScope.objects["lazyLoadingEnabled"] as Boolean
         assertTrue(lazyLoadingEnabled)
@@ -493,7 +522,7 @@ class AuthorizationEdgeCasesStepsDefinition(
     fun `security attacks should be prevented`() {
         val documentResponse = responseScenarioScope.responseSpec!!
             .expectBody<DocumentResponse>().returnResult().responseBody!!
-        
+
         assertNotNull(documentResponse.id)
         // If we get here without security issues, attacks were prevented
     }

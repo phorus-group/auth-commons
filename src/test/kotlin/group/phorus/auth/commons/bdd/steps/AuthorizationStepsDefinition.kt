@@ -6,7 +6,11 @@ import com.github.tomakehurst.wiremock.http.ContentTypeHeader
 import group.phorus.auth.commons.bdd.app.dtos.DocumentDTO
 import group.phorus.auth.commons.bdd.app.dtos.DocumentResponse
 import group.phorus.auth.commons.bdd.app.model.Document
+import group.phorus.auth.commons.bdd.app.model.User
 import group.phorus.auth.commons.bdd.app.repositories.DocumentRepository
+import group.phorus.auth.commons.bdd.app.repositories.UserRepository
+import group.phorus.auth.commons.security.TokenFactory
+import group.phorus.auth.commons.services.TokenFactory
 import group.phorus.mapper.mapping.extensions.mapTo
 import group.phorus.test.commons.bdd.BaseRequestScenarioScope
 import group.phorus.test.commons.bdd.BaseResponseScenarioScope
@@ -16,6 +20,7 @@ import io.cucumber.java.AfterAll
 import io.cucumber.java.BeforeAll
 import io.cucumber.java.en.Given
 import io.cucumber.java.en.Then
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.test.web.reactive.server.expectBody
@@ -26,10 +31,32 @@ class AuthorizationStepsDefinition(
     @Autowired private val requestScenarioScope: BaseRequestScenarioScope,
     @Autowired private val responseScenarioScope: BaseResponseScenarioScope,
     @Autowired private val documentRepository: DocumentRepository,
+    @Autowired private val userRepository: UserRepository,
+    @Autowired private val tokenFactory: TokenFactory,
 ) {
 
     companion object {
         val wireMockServer = WireMockServer(8088)
+    }
+
+    @Given("the caller has admin privileges")
+    fun `the caller has admin privileges`() {
+        runBlocking {
+            val currentUserId = UUID.fromString(baseScenarioScope.objects["userId"] as String)
+            val privileges = listOf("admin")
+            val properties = mapOf(
+                "name" to "Advanced Test User",
+                "email" to "advancedtest@email.com"
+            )
+
+            val accessToken = tokenFactory.createAccessToken(
+                userId = currentUserId,
+                privileges = privileges,
+                properties = properties
+            )
+
+            baseScenarioScope.objects["accessToken"] = "Bearer ${accessToken.token}"
+        }
     }
 
     @Given("the given Document exists:")
