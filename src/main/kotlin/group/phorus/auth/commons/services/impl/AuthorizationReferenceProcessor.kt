@@ -34,11 +34,10 @@ class AuthorizationReferenceProcessor(
     private val objectProcessor: ObjectProcessor,
 ) {
 
-    private val contextRegistry: Map<String, AuthorizationContextProvider> by lazy {
+    private val contextRegistry: Map<String, AuthorizationContextProvider> =
         contextProviders
             .sortedBy { it.getPriority() }
             .associateBy { it.getContextPrefix() } // We keep the highest priority contexts with the same prefix
-    }
 
     /**
      * Resolves a context or entity reference and returns the actual value.

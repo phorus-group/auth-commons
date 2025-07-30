@@ -9,7 +9,7 @@ import java.util.*
 @Table(name = "addresses")
 // Owner-based authorization - user can only access their own addresses
 @Authorization(definitions = [
-    Authorize(value = "user/id", matches = ["auth::userId"])
+    Authorize(value = "::user/id", matches = ["auth::userId"])
 ])
 class Address(
     @Id

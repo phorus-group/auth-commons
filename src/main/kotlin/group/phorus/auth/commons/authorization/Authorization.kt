@@ -18,7 +18,7 @@ enum class AuthorizationMode {
      *     mode = AuthorizationMode.OR,
      *     definitions = [
      *         Authorize(matches = ["auth::privileges/admin"]),           // Fast privilege check first
-     *         Authorize(value = "ownerId", matches = ["auth::userId"]),      // Medium speed property check
+     *         Authorize(value = "::ownerId", matches = ["auth::userId"]),    // Medium speed property check
      *         Authorize(                                                     // Expensive handler call last
      *             restHandler = RESTHandler(call = "/api/delegations/\${::id}"),
      *             value = "response::delegateId",
@@ -46,7 +46,7 @@ enum class AuthorizationMode {
      *     mode = AuthorizationMode.AND,
      *     definitions = [
      *         Authorize(matches = ["auth::privileges/finance:read"]),        // Fast privilege check first
-     *         Authorize(value = "departmentId", matches = ["auth::departmentId"]), // Medium property check
+     *         Authorize(value = "::departmentId", matches = ["auth::departmentId"]), // Medium property check
      *         Authorize(                                                     // Expensive handler call last
      *             restHandler = RESTHandler(call = "/api/approvals/financial/\${::id}"),
      *             value = "response::isApproved",
@@ -95,7 +95,7 @@ enum class Operation {
  * ```kotlin
  * @Authorization(definitions = [
  *     Authorize(matches = ["auth::privileges/admin"]),               // Fastest: privilege check
- *     Authorize(value = "ownerId", matches = ["auth::userId"]),      // Medium: property comparison
+ *     Authorize(value = "::ownerId", matches = ["auth::userId"]),    // Medium: property comparison
  *     Authorize(restHandler = RESTHandler(call = "/api/..."))        // Slowest: external API call
  * ])
  * ```
@@ -106,7 +106,7 @@ enum class Operation {
  *     mode = AuthorizationMode.AND,
  *     definitions = [
  *         Authorize(matches = ["auth::privileges/required"]),        // Fast failure if no privilege
- *         Authorize(value = "status", matches = ["active"]),         // Fast property check
+ *         Authorize(value = "::status", matches = ["active"]),       // Fast property check
  *         Authorize(restHandler = RESTHandler(call = "/api/..."))    // Expensive check only if others pass
  *     ]
  * )
@@ -117,7 +117,7 @@ enum class Operation {
  * ### Example 1: Simple OR Logic (Default)
  * ```kotlin
  * @Authorization(definitions = [
- *     Authorize(value = "ownerId", matches = ["auth::userId"]),     // Owner can access
+ *     Authorize(value = "::ownerId", matches = ["auth::userId"]),   // Owner can access
  *     Authorize(matches = ["auth::privileges/admin"])               // OR admin can access
  * ])
  * var sensitiveData: String? = null
@@ -149,13 +149,13 @@ enum class Operation {
  *     mode = AuthorizationMode.AND,
  *     definitions = [
  *         Authorize(matches = ["auth::privileges/department:access"]),
- *         Authorize(value = "departmentId", matches = ["auth::departmentId"])
+ *         Authorize(value = "::departmentId", matches = ["auth::departmentId"])
  *     ]
  * )
  * // Low priority: Owner access (checked last)
  * @Authorization(
  *     priority = 10,
- *     definitions = [Authorize(value = "ownerId", matches = ["auth::userId"])]
+ *     definitions = [Authorize(value = "::ownerId", matches = ["auth::userId"])]
  * )
  * var departmentData: String? = null
  * ```
@@ -167,7 +167,7 @@ enum class Operation {
  *     definitions = [
  *         // Fast checks first (most common cases)
  *         Authorize(matches = ["auth::privileges/admin"]),
- *         Authorize(value = "ownerId", matches = ["auth::userId"]),
+ *         Authorize(value = "::ownerId", matches = ["auth::userId"]),
  *
  *         // Expensive external validation last (uncommon case)
  *         Authorize(

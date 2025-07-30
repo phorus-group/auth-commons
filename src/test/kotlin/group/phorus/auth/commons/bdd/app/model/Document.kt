@@ -15,7 +15,7 @@ import java.util.*
 @Table(name = "documents")
 // Owner-based authorization for all operations
 @Authorization(definitions = [
-    Authorize(value = "ownerId", matches = ["auth::userId"])
+    Authorize(value = "::ownerId", matches = ["auth::userId"])
 ])
 // Admin override with highest priority
 @Authorization(
@@ -40,7 +40,7 @@ class Document(
     @Column(nullable = false)
     var content: String? = null,
 
-    @Basic(fetch = FetchType.LAZY)
+    @Basic
     @Column(nullable = false)
     var ownerId: UUID? = null,
 
