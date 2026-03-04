@@ -2,46 +2,33 @@ import com.kageiit.jacobo.JacoboTask
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.springframework.boot.gradle.tasks.bundling.BootJar
-import java.net.URL
+import java.net.URI
 import java.time.LocalDate
 
 plugins {
-    id("org.springframework.boot").version("3.4.3")
-    id("io.spring.dependency-management").version("1.1.2")
-    kotlin("jvm").version("1.9.0")
-    kotlin("plugin.spring").version("1.9.0")
-    id("org.jetbrains.dokka").version("1.9.20")
-    id("io.github.gradle-nexus.publish-plugin").version("2.0.0")
+    id("org.springframework.boot").version("4.0.3")
+    id("io.spring.dependency-management").version("1.1.7")
+    kotlin("jvm").version("2.3.10")
+    kotlin("plugin.spring").version("2.3.10")
+    id("org.jetbrains.dokka").version("2.1.0")
+    id("com.vanniktech.maven.publish") version "0.34.0"
     id("com.kageiit.jacobo") version "2.1.0"
-    `maven-publish`
-    `java-library`
-    signing
     jacoco
 }
 
 group = "group.phorus"
-description = "Library containing common AuthZ/AuthN logic for Spring based services."
-version = "1.0.11"
+description = "Library containing common AuthN logic for Spring based services."
+version = "1.0.12"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
     withSourcesJar()
-    withJavadocJar()
 }
 
 repositories {
     mavenCentral()
-}
-
-// Enforce dokka's Jackson version consistency
-// https://github.com/Kotlin/dokka/issues/3472
-configurations.matching { it.name.startsWith("dokka") }.configureEach {
-    resolutionStrategy.eachDependency {
-        if (requested.group.startsWith("com.fasterxml.jackson")) {
-            useVersion("2.15.3")
-        }
-    }
+    mavenLocal()
 }
 
 dependencies {
@@ -50,7 +37,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-configuration-processor")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-    api("org.springframework.security:spring-security-crypto:6.4.4")
+    api("org.springframework.security:spring-security-crypto")
 
     // Kotlin
     implementation(kotlin("reflect"))
@@ -59,26 +46,36 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
 
     // Phorus
-    implementation("group.phorus:mapper:1.1.3")
-    implementation("group.phorus:exception-handling:1.0.13")
+    implementation("group.phorus:mapper:1.1.6")
+    implementation("group.phorus:exception-handling:1.1.0")
 
     // JWT
-    api("org.bouncycastle:bcprov-jdk18on:1.78.1")
-    api("io.jsonwebtoken:jjwt-api:0.12.6")
-    api("io.jsonwebtoken:jjwt-impl:0.12.6")
-    api("io.jsonwebtoken:jjwt-jackson:0.12.6")
+    api("org.bouncycastle:bcprov-jdk18on:1.80")
+    api("io.jsonwebtoken:jjwt-api:0.13.0")
+    api("io.jsonwebtoken:jjwt-impl:0.13.0")
+    api("io.jsonwebtoken:jjwt-jackson:0.13.0")
 
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("group.phorus:test-commons:1.1.5")
-    testImplementation("org.mockito.kotlin:mockito-kotlin:5.3.1")
+    testImplementation("org.springframework.boot:spring-boot-webtestclient")
+    testImplementation("group.phorus:test-commons:1.1.6")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:6.2.3")
     testImplementation("org.wiremock:wiremock-jetty12:3.13.1")
-    testImplementation("io.mockk:mockk:1.14.2")
+    testImplementation("io.mockk:mockk:1.14.9")
     testRuntimeOnly("com.h2database:h2")
 }
 
+// Force Jetty 12.0.16 for WireMock compatibility (SB 4.0 upgrades to 12.1.x which breaks WireMock)
+configurations.matching { it.name.startsWith("test") }.configureEach {
+    resolutionStrategy.eachDependency {
+        if (requested.group.startsWith("org.eclipse.jetty")) {
+            useVersion("12.0.16")
+        }
+    }
+}
 
-val repoUrl = System.getenv("CI_PROJECT_URL") ?: "not defined"
+val repoUrl = System.getenv("GITHUB_REPOSITORY")?.let { "https://github.com/$it" }
+    ?: "https://github.com/phorus-group/auth-commons"
 
 tasks {
     getByName<BootJar>("bootJar") {
@@ -87,7 +84,7 @@ tasks {
 
     // Jacoco config
     jacocoTestReport {
-        executionData.setFrom(fileTree(buildDir).include("/jacoco/*.exec"))
+        executionData.setFrom(fileTree(project.layout.buildDirectory).include("/jacoco/*.exec"))
 
         reports {
             xml.required.set(true)
@@ -132,109 +129,75 @@ tasks {
         }
     }
 
-    dokkaHtml.configure {
-        val branch = System.getenv("CI_COMMIT_BRANCH") ?: "not defined"
-
-        dokkaSourceSets {
-            configureEach {
-                reportUndocumented.set(true)
-                platform.set(org.jetbrains.dokka.Platform.jvm)
-
-                sourceRoot(file("src"))
-
-                sourceLink {
-                    localDirectory.set(file("src/main/kotlin"))
-                    remoteUrl.set(URL("$repoUrl/-/tree/$branch/src/main/kotlin"))
-                    remoteLineSuffix.set("#L")
-                }
-            }
-        }
-
+    dokka {
+        val branch = System.getenv("GITHUB_REF_NAME") ?: "main"
         val currentYear = LocalDate.now().year
-        pluginsMapConfiguration.set(mapOf("org.jetbrains.dokka.base.DokkaBase" to
-                " {\"footerMessage\":" +
-                "\"© $currentYear Phorus Group - Licensed under the " +
-                "<a target=\\\"_blank\\\" href=\\\"$repoUrl/-/tree/$branch/LICENSE\\\">Apache 2 license</a>.\"}"
-            )
-        )
-    }
 
-    named<Jar>("javadocJar") {
-        from(dokkaHtml)
-        dependsOn(dokkaHtml)
-    }
-}
+        dokkaPublications.html {
+            outputDirectory.set(layout.buildDirectory.dir("dokka/html"))
+        }
 
-publishing {
-    publications {
-        create<MavenPublication>(project.name) {
-            groupId = "${project.group}"
-            artifactId = project.name
-            version = "${project.version}"
-            from(components["java"])
+        dokkaSourceSets.configureEach {
+            reportUndocumented.set(true)
+            jdkVersion.set(java.targetCompatibility.majorVersion.toInt())
+            sourceRoots.from(file("src"))
 
-            pom {
-                name.set(project.name)
-                description.set(project.description)
-                url.set(repoUrl)
-
-                licenses {
-                    license {
-                        name.set("The Apache License, Version 2.0")
-                        url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
-                    }
-                }
-
-                developers {
-                    developer {
-                        id.set("irios.phorus")
-                        name.set("Martin Rios")
-                        email.set("irios@phorus.group")
-                        organization.set("Phorus Group")
-                        organizationUrl.set("https://phorus.group")
-                    }
-                }
-
-                scm {
-                    url.set(repoUrl)
-                    connection.set("scm:git:${System.getenv("CI_PROJECT_URL")}.git")
-                    developerConnection.set("scm:git:${System.getenv("CI_PROJECT_URL")}.git")
-                }
+            sourceLink {
+                localDirectory.set(file("src/main/kotlin"))
+                remoteUrl.set(URI("$repoUrl/tree/$branch/src/main/kotlin"))
+                remoteLineSuffix.set("#L")
             }
         }
+
+        pluginsConfiguration.html {
+            footerMessage.set("© $currentYear Phorus Group - Licensed under the <a target=\"_blank\" href=\"$repoUrl/blob/$branch/LICENSE\">Apache 2 license</a>.")
+        }
     }
 
-    repositories {
-        maven {
-            name = "OSSRH"
+}
 
-            val releasesRepoUrl = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2"
-            val snapshotsRepoUrl = "https://s01.oss.sonatype.org/content/repositories/snapshots"
-            url = uri(if (version.toString().endsWith("SNAPSHOT")) snapshotsRepoUrl else releasesRepoUrl)
+afterEvaluate {
+    tasks.named("generateMetadataFileForMavenPublication") {
+        dependsOn("dokkaJavadocJar")
+    }
+}
 
-            credentials {
-                username = System.getenv("OSSRH_USER") ?: return@credentials
-                password = System.getenv("OSSRH_PASSWORD") ?: return@credentials
+mavenPublishing {
+    coordinates(
+        groupId = project.group.toString(),
+        artifactId = project.name,
+        version = project.version.toString()
+    )
+
+    pom {
+        name.set(project.name)
+        description.set(project.description ?: "")
+        url.set(repoUrl)
+
+        licenses {
+            license {
+                name.set("The Apache License, Version 2.0")
+                url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
             }
         }
-    }
-}
 
-nexusPublishing {
-    repositories {
-        sonatype {
-            nexusUrl.set(uri("https://s01.oss.sonatype.org/service/local/"))
-            snapshotRepositoryUrl.set(uri("https://s01.oss.sonatype.org/content/repositories/snapshots/"))
-            username.set(System.getenv("OSSRH_USER") ?: return@sonatype)
-            password.set(System.getenv("OSSRH_PASSWORD") ?: return@sonatype)
+        developers {
+            developer {
+                id.set("irios.phorus")
+                name.set("Martin Rios")
+                email.set("irios@phorus.group")
+                organization.set("Phorus Group")
+                organizationUrl.set("https://phorus.group")
+            }
+        }
+
+        scm {
+            url.set(repoUrl)
+            connection.set("scm:git:$repoUrl.git")
+            developerConnection.set("scm:git:$repoUrl.git")
         }
     }
-}
 
-signing {
-    val key = System.getenv("PUBLIC_PUBLISH_SIGNING_KEY") ?: return@signing
-    val password = System.getenv("PUBLIC_PUBLISH_SIGNING_PASSWORD") ?: return@signing
-
-    useInMemoryPgpKeys(key, password)
-    sign(publishing.publications[project.name])
+    publishToMavenCentral(automaticRelease = true)
+    if (System.getenv("SIGNING_KEY") != null) signAllPublications()
 }

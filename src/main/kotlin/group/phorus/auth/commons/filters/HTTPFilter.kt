@@ -2,7 +2,6 @@ package group.phorus.auth.commons.filters
 
 import group.phorus.auth.commons.context.HTTPContext
 import group.phorus.auth.commons.dtos.HTTPContextData
-import group.phorus.mapper.mapping.extensions.mapTo
 import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.withContext
 import org.springframework.boot.autoconfigure.AutoConfiguration
@@ -11,7 +10,6 @@ import org.springframework.web.server.CoWebFilter
 import org.springframework.web.server.CoWebFilterChain
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
-import kotlin.coroutines.coroutineContext
 
 @AutoConfiguration
 class HTTPFilter : CoWebFilter() {
@@ -21,7 +19,7 @@ class HTTPFilter : CoWebFilter() {
         val contextData = HTTPContextData(
             path = request.path.value(),
             method = request.method,
-            headers = request.headers.toMap().map { (key, values) -> key.lowercase() to values }.toMap(),
+            headers = buildMap { request.headers.forEach { key, values -> put(key.lowercase(), values) } },
             queryParams = request.queryParams.toMap(),
             remoteAddress = request.remoteAddress?.address?.hostAddress,
             timestamp = Instant.now(),
@@ -30,7 +28,7 @@ class HTTPFilter : CoWebFilter() {
             origin = request.headers.getFirst(HttpHeaders.ORIGIN)
         )
 
-        return withContext(coroutineContext + HTTPContext.context.asContextElement(value = contextData)) {
+        return withContext(HTTPContext.context.asContextElement(value = contextData)) {
             chain.filter(exchange)
         }
     }

@@ -37,6 +37,21 @@ Feature: User CRUD operations
       | name     | email          |
       | testUser | test@email.com |
 
+  Scenario: Caller wants to get his current user, but calls the endpoint that does it with a dispatcher
+    Given the caller has the given login information:
+      | email          | password | device | expires |
+      | test@email.com | testPass | phone1 | false   |
+    And the POST "/auth/login" endpoint is called
+    And the service returns HTTP 200
+    And the service returns the AuthResponse
+    When the GET "/user/withDispatcher" endpoint is called:
+      | type   | key                | value                 |
+      | header | Authorization      | Bearer {accessToken}  |
+    Then the service returns HTTP 200
+    And the service returns the User:
+      | name     | email          |
+      | testUser | test@email.com |
+
   Scenario: Caller wants to get his current user, but doesn't have a valid access token
     When the GET "/user" endpoint is called:
       | type   | key                | value        |

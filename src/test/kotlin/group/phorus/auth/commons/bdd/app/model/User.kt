@@ -23,9 +23,6 @@ class User(
     var passwordHash: String? = null,
 
     @OneToMany(mappedBy = "user", cascade = [CascadeType.REMOVE])
-    var addresses: MutableSet<Address> = mutableSetOf(),
-
-    @OneToMany(mappedBy = "user", cascade = [CascadeType.REMOVE])
     var devices: MutableSet<Device> = mutableSetOf(),
 )
 

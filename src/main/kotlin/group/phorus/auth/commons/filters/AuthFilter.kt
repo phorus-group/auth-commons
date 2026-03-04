@@ -35,9 +35,7 @@ class AuthFilter(
             path.startsWith(it.path) && (it.method == null || HttpMethod.valueOf(it.method!!) == method)
         }
         if (isIgnoredPath) {
-            return withContext(coroutineContext) {
-                chain.filter(exchange)
-            }
+            return chain.filter(exchange)
         }
 
         val header = exchange.request.headers.getFirst(AUTHORIZATION)
@@ -60,7 +58,7 @@ class AuthFilter(
 
         val authContextData = authData.mapTo<AuthContextData>()!!
 
-        return withContext(coroutineContext + AuthContext.context.asContextElement(value = authContextData)) {
+        return withContext(AuthContext.context.asContextElement(value = authContextData)) {
             chain.filter(exchange)
         }
     }

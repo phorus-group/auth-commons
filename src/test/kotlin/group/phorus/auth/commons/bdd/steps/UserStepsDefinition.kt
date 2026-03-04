@@ -68,6 +68,6 @@ class UserStepsDefinition(
     fun `the service returns a message with the error {string}`(error: String) {
         responseScenarioScope.responseSpec!!
             .expectBody()
-            .jsonPath("$.apierror.message").isEqualTo(error)
+            .jsonPath("$.message").isEqualTo(error)
     }
 }
