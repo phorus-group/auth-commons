@@ -16,6 +16,9 @@ plugins {
     jacoco
 }
 
+ext["jackson-2-bom.version"] = "2.21.1"
+ext["jackson-bom.version"] = "3.1.0"
+
 group = "group.phorus"
 description = "Library containing common AuthN logic for Spring based services."
 version = "1.0.12"
