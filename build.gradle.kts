@@ -28,7 +28,6 @@ java {
 
 repositories {
     mavenCentral()
-    mavenLocal()
 }
 
 dependencies {
@@ -46,7 +45,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
 
     // Phorus
-    implementation("group.phorus:mapper:1.1.6")
+    implementation("group.phorus:mapper:1.2.0")
     implementation("group.phorus:exception-handling:1.1.0")
 
     // JWT
