@@ -197,10 +197,7 @@ class TokenFactoryImpl(
         privileges: List<String>?,
         properties: Map<String, String>,
     ): Map<String, Any> = buildMap {
-        val jti = UUID.nameUUIDFromBytes(
-            "${tokenType.name}-${userId}-${currentTime.toEpochMilli()}"
-                .toByteArray()
-        ).toString()
+        val jti = UUID.randomUUID().toString()
 
         put("jti", jti)
         put("sub", userId.toString())
