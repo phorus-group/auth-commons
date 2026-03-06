@@ -3,5 +3,8 @@ group.phorus.auth.commons.config.UserContextConverter
 group.phorus.auth.commons.config.PasswordEncoderConfig
 group.phorus.auth.commons.filters.AuthFilter
 group.phorus.auth.commons.filters.HTTPFilter
-group.phorus.auth.commons.services.impl.AuthenticatorImpl
+group.phorus.auth.commons.services.impl.StandaloneAuthenticator
 group.phorus.auth.commons.services.impl.TokenFactoryImpl
+group.phorus.auth.commons.config.IdpAutoConfiguration
+group.phorus.auth.commons.services.impl.JwksKeyLocator
+group.phorus.auth.commons.services.impl.IdpAuthenticator

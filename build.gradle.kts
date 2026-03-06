@@ -21,7 +21,7 @@ ext["jackson-bom.version"] = "3.1.0"
 
 group = "group.phorus"
 description = "Library containing common AuthN logic for Spring based services."
-version = "1.0.13"
+version = "2.0.0"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -36,6 +36,7 @@ repositories {
 dependencies {
     // Spring
     implementation("org.springframework.boot:spring-boot-starter-webflux")
+    implementation("org.springframework.boot:spring-boot-webclient")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-configuration-processor")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")

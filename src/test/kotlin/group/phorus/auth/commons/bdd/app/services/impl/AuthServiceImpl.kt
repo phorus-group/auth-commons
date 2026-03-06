@@ -56,7 +56,7 @@ class AuthServiceImpl(
         if (device == null || device.disabled) throw Unauthorized("Invalid refresh token, please log in again")
 
         val accessToken = tokenFactory.createAccessToken(authData.userId, listOf("admin"), authData.properties)
-        val accessTokenJTI = authenticator.parseClaims(accessToken.token).payload.id
+        val accessTokenJTI = authenticator.authenticate(accessToken.token, enableValidators = false).jti
 
         device.accessTokenJTI = accessTokenJTI
         withContext(Dispatchers.IO) {
@@ -80,8 +80,8 @@ class AuthServiceImpl(
         val accessToken = tokenFactory.createAccessToken(user.id!!, listOf("admin"), properties)
         val refreshToken = tokenFactory.createRefreshToken(user.id!!, loginData.expires, properties)
 
-        val accessTokenJTI = authenticator.parseClaims(accessToken.token).payload.id
-        val refreshTokenJTI = authenticator.parseClaims(refreshToken).payload.id
+        val accessTokenJTI = authenticator.authenticate(accessToken.token, enableValidators = false).jti
+        val refreshTokenJTI = authenticator.authenticate(refreshToken, enableValidators = false).jti
 
         withContext(Dispatchers.IO) {
             deviceRepository.findByNameAndUserId(loginData.device!!, user.id!!)

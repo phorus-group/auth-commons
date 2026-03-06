@@ -27,3 +27,23 @@ Feature: Auth operations
       | header | Authorization      | Bearer {refreshToken}  |
     Then the service returns HTTP 200
     And the service returns the AccessToken
+
+  Scenario: Validators accept a valid token with custom claim
+    Given the given User exists:
+      | name          | email                 | passwordHash |
+      | validatorUser | validator@example.com | hash123      |
+    And the caller has a token for that user with privileges "read" and claim "tokenThingy" = "true"
+    When the GET "/protected/me" endpoint is called:
+      | type   | key           | value                |
+      | header | Authorization | Bearer {accessToken} |
+    Then the service returns HTTP 200
+
+  Scenario: Validators reject a token with invalid custom claim
+    Given the given User exists:
+      | name         | email                | passwordHash |
+      | rejectedUser | rejected@example.com | hash456      |
+    And the caller has a token for that user with privileges "read" and claim "tokenThingy" = "false"
+    When the GET "/protected/me" endpoint is called:
+      | type   | key           | value                |
+      | header | Authorization | Bearer {accessToken} |
+    Then the service returns HTTP 401
