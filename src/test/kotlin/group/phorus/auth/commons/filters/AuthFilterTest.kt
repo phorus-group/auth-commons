@@ -1,6 +1,7 @@
 package group.phorus.auth.commons.filters
 
 import group.phorus.auth.commons.config.AuthMode
+import group.phorus.auth.commons.config.MetricsRecorder
 import group.phorus.auth.commons.config.Path
 import group.phorus.auth.commons.config.SecurityConfiguration
 import group.phorus.auth.commons.dtos.AuthData
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.mockito.kotlin.*
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest
@@ -87,6 +89,8 @@ class AuthFilterTest {
             return MockServerWebExchange.from(requestBuilder.build())
         }
 
+        private fun emptyMetricsProvider(): ObjectProvider<MetricsRecorder> = mock()
+
         private fun noOpChain(): WebFilterChain =
             WebFilterChain { Mono.empty() }
 
@@ -106,7 +110,7 @@ class AuthFilterTest {
         @Test
         fun `throws Unauthorized when Authorization header is missing`() {
             val config = buildConfig()
-            val filter = AuthFilter(config, mockAuthenticator(), null)
+            val filter = AuthFilter(config, mockAuthenticator(), null, emptyMetricsProvider())
             val exchange = buildExchange(authHeader = null)
 
             assertThrows<Unauthorized> { invokeFilter(filter, exchange) }
@@ -115,7 +119,7 @@ class AuthFilterTest {
         @Test
         fun `throws Unauthorized when Authorization header is too short`() {
             val config = buildConfig()
-            val filter = AuthFilter(config, mockAuthenticator(), null)
+            val filter = AuthFilter(config, mockAuthenticator(), null, emptyMetricsProvider())
             val exchange = buildExchange(authHeader = "Bear")
 
             assertThrows<Unauthorized> { invokeFilter(filter, exchange) }
@@ -124,7 +128,7 @@ class AuthFilterTest {
         @Test
         fun `throws Unauthorized when Bearer prefix is missing`() {
             val config = buildConfig()
-            val filter = AuthFilter(config, mockAuthenticator(), null)
+            val filter = AuthFilter(config, mockAuthenticator(), null, emptyMetricsProvider())
             val exchange = buildExchange(authHeader = "Basic dXNlcjpwYXNz")
 
             assertThrows<Unauthorized> { invokeFilter(filter, exchange) }
@@ -134,7 +138,7 @@ class AuthFilterTest {
         fun `extracts token after Bearer prefix`() {
             val authenticator = mockAuthenticator()
             val config = buildConfig()
-            val filter = AuthFilter(config, authenticator, null)
+            val filter = AuthFilter(config, authenticator, null, emptyMetricsProvider())
             val exchange = buildExchange(authHeader = "Bearer my-jwt-token")
 
             invokeFilter(filter, exchange)
@@ -151,7 +155,7 @@ class AuthFilterTest {
         fun `bypasses authentication for ignored paths`() {
             val config = buildConfig(ignoredPaths = listOf(Path(path = "/auth/login")))
             val authenticator = mockAuthenticator()
-            val filter = AuthFilter(config, authenticator, null)
+            val filter = AuthFilter(config, authenticator, null, emptyMetricsProvider())
             val exchange = buildExchange(path = "/auth/login", authHeader = null)
 
             invokeFilter(filter, exchange)
@@ -163,7 +167,7 @@ class AuthFilterTest {
         fun `bypasses authentication for ignored path with matching method`() {
             val config = buildConfig(ignoredPaths = listOf(Path(path = "/auth/login", method = "POST")))
             val authenticator = mockAuthenticator()
-            val filter = AuthFilter(config, authenticator, null)
+            val filter = AuthFilter(config, authenticator, null, emptyMetricsProvider())
             val exchange = buildExchange(path = "/auth/login", method = HttpMethod.POST, authHeader = null)
 
             invokeFilter(filter, exchange)
@@ -174,7 +178,7 @@ class AuthFilterTest {
         @Test
         fun `does not bypass when method does not match ignored path`() {
             val config = buildConfig(ignoredPaths = listOf(Path(path = "/auth/login", method = "POST")))
-            val filter = AuthFilter(config, mockAuthenticator(), null)
+            val filter = AuthFilter(config, mockAuthenticator(), null, emptyMetricsProvider())
             val exchange = buildExchange(path = "/auth/login", method = HttpMethod.GET, authHeader = null)
 
             assertThrows<Unauthorized> { invokeFilter(filter, exchange) }
@@ -183,7 +187,7 @@ class AuthFilterTest {
         @Test
         fun `does not bypass for non-matching paths`() {
             val config = buildConfig(ignoredPaths = listOf(Path(path = "/auth/login")))
-            val filter = AuthFilter(config, mockAuthenticator(), null)
+            val filter = AuthFilter(config, mockAuthenticator(), null, emptyMetricsProvider())
             val exchange = buildExchange(path = "/api/protected", authHeader = null)
 
             assertThrows<Unauthorized> { invokeFilter(filter, exchange) }
@@ -199,7 +203,7 @@ class AuthFilterTest {
             val authenticator = mockAuthenticator()
             val idpAuth = mockIdpAuthenticator()
             val config = buildConfig(mode = AuthMode.STANDALONE)
-            val filter = AuthFilter(config, authenticator, idpAuth)
+            val filter = AuthFilter(config, authenticator, idpAuth, emptyMetricsProvider())
 
             invokeFilter(filter, buildExchange())
 
@@ -212,7 +216,7 @@ class AuthFilterTest {
             val authenticator = mockAuthenticator()
             val idpAuth = mockIdpAuthenticator()
             val config = buildConfig(mode = AuthMode.IDP_BRIDGE)
-            val filter = AuthFilter(config, authenticator, idpAuth)
+            val filter = AuthFilter(config, authenticator, idpAuth, emptyMetricsProvider())
 
             invokeFilter(filter, buildExchange())
 
@@ -225,7 +229,7 @@ class AuthFilterTest {
             val authenticator = mockAuthenticator()
             val idpAuth = mockIdpAuthenticator()
             val config = buildConfig(mode = AuthMode.IDP_DELEGATED)
-            val filter = AuthFilter(config, authenticator, idpAuth)
+            val filter = AuthFilter(config, authenticator, idpAuth, emptyMetricsProvider())
 
             invokeFilter(filter, buildExchange())
 
@@ -236,7 +240,7 @@ class AuthFilterTest {
         @Test
         fun `throws IllegalStateException in IDP_DELEGATED without IdpAuthenticator`() {
             val config = buildConfig(mode = AuthMode.IDP_DELEGATED)
-            val filter = AuthFilter(config, mockAuthenticator(), null)
+            val filter = AuthFilter(config, mockAuthenticator(), null, emptyMetricsProvider())
 
             assertThrows<IllegalStateException> { invokeFilter(filter, buildExchange()) }
         }
@@ -250,7 +254,7 @@ class AuthFilterTest {
         fun `rejects refresh token when refreshTokenPath is not configured`() {
             val authenticator = mockAuthenticator(REFRESH_AUTH_DATA)
             val config = buildConfig(refreshTokenPath = null)
-            val filter = AuthFilter(config, authenticator, null)
+            val filter = AuthFilter(config, authenticator, null, emptyMetricsProvider())
 
             assertThrows<Unauthorized> {
                 invokeFilter(filter, buildExchange(path = "/api/something"))
@@ -261,7 +265,7 @@ class AuthFilterTest {
         fun `rejects refresh token on non-matching path`() {
             val authenticator = mockAuthenticator(REFRESH_AUTH_DATA)
             val config = buildConfig(refreshTokenPath = "/auth/token")
-            val filter = AuthFilter(config, authenticator, null)
+            val filter = AuthFilter(config, authenticator, null, emptyMetricsProvider())
 
             assertThrows<Unauthorized> {
                 invokeFilter(filter, buildExchange(path = "/api/something"))
@@ -272,7 +276,7 @@ class AuthFilterTest {
         fun `allows refresh token on matching path`() {
             val authenticator = mockAuthenticator(REFRESH_AUTH_DATA)
             val config = buildConfig(refreshTokenPath = "/auth/token")
-            val filter = AuthFilter(config, authenticator, null)
+            val filter = AuthFilter(config, authenticator, null, emptyMetricsProvider())
 
             invokeFilter(filter, buildExchange(path = "/auth/token"))
         }
@@ -281,7 +285,7 @@ class AuthFilterTest {
         fun `allows access token on any path`() {
             val authenticator = mockAuthenticator(ACCESS_AUTH_DATA)
             val config = buildConfig(refreshTokenPath = "/auth/token")
-            val filter = AuthFilter(config, authenticator, null)
+            val filter = AuthFilter(config, authenticator, null, emptyMetricsProvider())
 
             invokeFilter(filter, buildExchange(path = "/api/anything"))
         }

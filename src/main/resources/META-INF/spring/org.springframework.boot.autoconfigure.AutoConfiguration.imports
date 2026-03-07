@@ -8,3 +8,4 @@ group.phorus.auth.commons.services.impl.TokenFactoryImpl
 group.phorus.auth.commons.config.IdpAutoConfiguration
 group.phorus.auth.commons.services.impl.JwksKeyLocator
 group.phorus.auth.commons.services.impl.IdpAuthenticator
+group.phorus.auth.commons.config.MetricsRecorder

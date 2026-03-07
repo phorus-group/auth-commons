@@ -45,6 +45,7 @@ available to your controllers and services automatically.
   - [Manual token validation](#manual-token-validation)
   - [Password encoding](#password-encoding)
   - [Disabling the auth filter](#disabling-the-auth-filter)
+- [Metrics](#metrics)
 - [Configuration reference](#configuration-reference)
 - [Keys and algorithms](#keys-and-algorithms)
   - [Token format](#token-format)
@@ -124,6 +125,7 @@ and configure step 1 (which paths don't require authentication).
 - **HTTP request metadata**: capture request path, method, headers, and remote IP via `HTTPContext`
 - **Nested claim extraction**: supports dot notation for extracting nested JSON claims (e.g. `realm_access.roles`)
 - **Ignored paths**: bypass authentication for specific paths with optional HTTP method filtering
+- **Optional metrics**: authentication attempt and token creation counters via [metrics-commons](https://github.com/phorus-group/metrics-commons), enabled by default when Actuator is present
 - **Coroutine-native**: the authenticated user is available anywhere in your request handling code
 - **Password encoding**: autoconfigured SCrypt password encoder
 
@@ -1096,6 +1098,50 @@ When the filter is disabled, no authentication is performed and `AuthContext` is
 
 </details>
 
+## Metrics
+
+The library integrates with [metrics-commons](https://github.com/phorus-group/metrics-commons) to
+record authentication performance and failure patterns.
+
+### Authentication duration timer
+
+Every authentication request records a timer named `auth.authentication` with tags:
+
+| Tag | Example values |
+|-----|---------------|
+| `mode` | `standalone`, `idp_bridge`, `idp_delegated` |
+| `exception` | `None` (success), `Unauthorized`, `ExpiredJwtException`, etc. |
+
+This single metric provides:
+- **Performance monitoring**: p50/p95/p99 latencies to detect slow authentication
+- **Success rate**: ratio of `exception=None` to failures  
+- **Failure breakdown**: which exception types occur most frequently (security monitoring)
+
+Example Prometheus queries:
+```promql
+# p95 authentication latency by mode
+histogram_quantile(0.95, rate(auth_authentication_seconds_bucket[5m]))
+
+# Authentication failure rate
+rate(auth_authentication_seconds_count{exception!="None"}[5m])
+/ rate(auth_authentication_seconds_count[5m])
+
+# Top failure reasons
+topk(5, sum by (exception) (rate(auth_authentication_seconds_count{exception!="None"}[5m])))
+```
+
+### Disabling metrics
+
+Metrics are **enabled by default** when `MeterRegistry` is available (via Spring Boot Actuator). 
+To disable them:
+
+```yaml
+phorus:
+  auth-commons:
+    metrics:
+      enabled: false
+```
+
 ***
 
 ## Configuration reference
@@ -1135,6 +1181,7 @@ When the filter is disabled, no authentication is performed and `AuthContext` is
 | `group.phorus.security.password-encoder.parallelization` | `1` | SCrypt parallelization (p) |
 | `group.phorus.security.password-encoder.key-length` | `32` | Derived key length in bytes |
 | `group.phorus.security.password-encoder.salt-length` | `16` | Salt length in bytes |
+| `phorus.auth-commons.metrics.enabled` | `true` | Enable/disable authentication and token creation metrics (requires `MeterRegistry` on classpath) |
 
 ## Keys and algorithms
 

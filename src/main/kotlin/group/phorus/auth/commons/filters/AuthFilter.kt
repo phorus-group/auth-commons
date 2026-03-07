@@ -1,6 +1,7 @@
 package group.phorus.auth.commons.filters
 
 import group.phorus.auth.commons.config.AuthMode
+import group.phorus.auth.commons.config.MetricsRecorder
 import group.phorus.auth.commons.config.SecurityConfiguration
 import group.phorus.auth.commons.context.AuthContext
 import group.phorus.auth.commons.dtos.AuthContextData
@@ -12,6 +13,7 @@ import group.phorus.mapper.mapping.extensions.mapTo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.withContext
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.HttpHeaders.AUTHORIZATION
@@ -48,8 +50,10 @@ class AuthFilter(
     private val securityConfiguration: SecurityConfiguration,
     private val authenticator: Authenticator,
     private val idpAuthenticator: IdpAuthenticator?,
+    metricsProvider: ObjectProvider<MetricsRecorder>,
 ) : CoWebFilter() {
     private val headerPrefix = "Bearer "
+    private val metrics = metricsProvider.getIfAvailable()
 
     override suspend fun filter(exchange: ServerWebExchange, chain: CoWebFilterChain) {
         val path = exchange.request.path.value()
@@ -69,8 +73,9 @@ class AuthFilter(
         if (!header.contains(headerPrefix)) throw Unauthorized("Bearer token not found")
 
         val jwt = header.substring(headerPrefix.length)
+        val mode = securityConfiguration.mode.name.lowercase()
 
-        val authData = when (securityConfiguration.mode) {
+        suspend fun performAuthentication() = when (securityConfiguration.mode) {
             AuthMode.STANDALONE, AuthMode.IDP_BRIDGE -> {
                 authenticator.authenticate(jwt)
             }
@@ -83,6 +88,9 @@ class AuthFilter(
                 withContext(Dispatchers.IO) { idpAuth.authenticate(jwt) }
             }
         }
+
+        val authData = metrics?.timeAuthentication(mode) { performAuthentication() }
+            ?: performAuthentication()
 
         if (authData.tokenType == TokenType.REFRESH_TOKEN && securityConfiguration.refreshTokenPath == null)
             throw Unauthorized("Invalid access token")
