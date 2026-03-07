@@ -21,7 +21,7 @@ ext["jackson-bom.version"] = "3.1.0"
 
 group = "group.phorus"
 description = "Library containing common AuthN logic for Spring based services."
-version = "2.0.3"
+version = "2.0.4"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -50,7 +50,7 @@ dependencies {
 
     // Phorus
     implementation("group.phorus:mapper:1.2.0")
-    implementation("group.phorus:exception-handling:1.1.2")
+    implementation("group.phorus:exception-handling:1.1.3")
     implementation("group.phorus:metrics-commons:2.0.2")
 
     // JWT
