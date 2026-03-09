@@ -127,11 +127,16 @@ class JwksKeyLocator(
      */
     private fun refreshKeysIfNeeded() {
         val now = Instant.now()
-        val timeSinceLastFetch = Duration.between(lastFetchTime, now)
+        val minRefreshInterval = maxOf(cacheTtl, refreshCooldown)
+
+        // Quick check without lock (optimization)
+        if (Duration.between(lastFetchTime, now) < minRefreshInterval) {
+            return
+        }
 
         lock.write {
             // Double-check: another thread may have refreshed while we waited for the write lock
-            val minRefreshInterval = maxOf(cacheTtl, refreshCooldown)
+            val timeSinceLastFetch = Duration.between(lastFetchTime, now)
             if (timeSinceLastFetch < minRefreshInterval) {
                 return
             }
