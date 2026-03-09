@@ -20,7 +20,7 @@ available to your controllers and services automatically.
 
 ## Table of contents
 
-- [Background: what is token-based authentication?](#background-what-is-token-based-authentication)
+- [What is token-based authentication?](#what-is-token-based-authentication)
 - [Features](#features)
 - [Getting started](#getting-started)
   - [Installation](#installation)
@@ -69,7 +69,7 @@ available to your controllers and services automatically.
 
 ***
 
-## Background: what is token-based authentication?
+## What is token-based authentication?
 
 If you are already familiar with JWT-based authentication, feel free to skip to [Features](#features).
 
