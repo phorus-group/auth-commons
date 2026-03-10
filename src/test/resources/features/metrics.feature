@@ -14,9 +14,9 @@ Feature: Authentication performance metrics
       | test@email.com | testPass | phone1 | false   |
     When the POST "/auth/login" endpoint is called
     Then the service returns HTTP 200
-    And the timer "auth.authentication" is recorded with mode "standalone" and exception "None"
+    And the timer "auth.jwt.token.authentication" is recorded with mode "standalone" and exception "None"
 
   Scenario: Failed authentication is timed with exception type
     When the GET "/user" endpoint is called
     Then the service returns HTTP 401
-    And the timer "auth.authentication" is recorded with mode "standalone" and exception "Unauthorized"
+    And the timer "auth.jwt.token.authentication" is recorded with mode "standalone" and exception "Unauthorized"

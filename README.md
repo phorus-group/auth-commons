@@ -4,7 +4,7 @@
 [![Maven Central](https://img.shields.io/maven-central/v/group.phorus/auth-commons)](https://mvnrepository.com/artifact/group.phorus/auth-commons)
 
 Authentication library for Spring Boot WebFlux services. Handles token creation, token validation on
-incoming requests, and Identity Provider integration. Add the dependency, configure `application.yml`,
+incoming requests, Identity Provider integration, and more. Add the dependency, configure `application.yml`,
 and the library takes care of the rest, every authenticated request makes the current user's identity
 available to your controllers and services automatically.
 
@@ -37,6 +37,11 @@ available to your controllers and services automatically.
   - [IDP_BRIDGE](#idp_bridge)
   - [IDP_DELEGATED](#idp_delegated)
 - [IdP provider setup](#idp-provider-setup)
+- [API key authentication](#api-key-authentication)
+  - [Static keys](#static-keys)
+  - [Custom API key validator](#custom-api-key-validator)
+  - [Reading API key identity](#reading-api-key-identity)
+  - [Dual authentication (token + API key)](#dual-authentication-token--api-key)
 - [More examples](#more-examples)
   - [Refresh tokens](#refresh-tokens)
   - [Custom properties in tokens](#custom-properties-in-tokens)
@@ -44,7 +49,8 @@ available to your controllers and services automatically.
   - [Reading HTTP request metadata](#reading-http-request-metadata)
   - [Manual token validation](#manual-token-validation)
   - [Password encoding](#password-encoding)
-  - [Disabling the auth filter](#disabling-the-auth-filter)
+  - [Path filtering modes](#path-filtering-modes)
+  - [Disabling filters](#disabling-filters)
 - [Metrics](#metrics)
 - [Configuration reference](#configuration-reference)
 - [Keys and algorithms](#keys-and-algorithms)
@@ -121,11 +127,13 @@ and configure step 1 (which paths don't require authentication).
 - **Auto-detection**: accepts tokens in any format regardless of the configured creation format
 - **Refresh tokens**: long-lived tokens for session renewal with path-based restriction
 - **Custom token properties**: embed arbitrary key-value pairs as JWT claims
-- **Pluggable validators**: custom claim validation via the `Validator` interface
+- **API key authentication**: optional API key filter with static keys or a custom validator, runs alongside or instead of token auth
+- **Multi-filter architecture**: independent token and API key filters with per-filter path filtering, composable and extensible
+- **Pluggable validators**: custom claim validation via the `Validator` interface, custom API key validation via the `ApiKeyValidator` interface
 - **HTTP request metadata**: capture request path, method, headers, and remote IP via `HTTPContext`
 - **Nested claim extraction**: supports dot notation for extracting nested JSON claims (e.g. `realm_access.roles`)
-- **Ignored paths**: bypass authentication for specific paths with optional HTTP method filtering
-- **Optional metrics**: authentication attempt and token creation counters via [metrics-commons](https://github.com/phorus-group/metrics-commons), enabled by default when Actuator is present
+- **Path filtering modes**: per-filter `ignored-paths` (skip listed) or `protected-paths` (only filter listed), with optional HTTP method constraints
+- **Optional metrics**: authentication duration timers via [metrics-commons](https://github.com/phorus-group/metrics-commons), enabled by default when Actuator is present
 - **Coroutine-native**: the authenticated user is available anywhere in your request handling code
 - **Password encoding**: autoconfigured SCrypt password encoder
 
@@ -183,9 +191,12 @@ group:
   phorus:
     security:
       mode: STANDALONE
-      refresh-token-path: /auth/token
-      ignored-paths:
-        - path: /auth/login
+      filters:
+        token:
+          enabled: true
+          refresh-token-path: /auth/token
+          ignored-paths:
+            - path: /auth/login
       jwt:
         issuer: my-service
         token-format: JWS
@@ -479,11 +490,14 @@ group:
   phorus:
     security:
       mode: STANDALONE
-      refresh-token-path: /auth/token
-      ignored-paths:
-        - path: /auth/login
-        - path: /user
-          method: POST        # only POST is ignored, GET /user still requires auth
+      filters:
+        token:
+          enabled: true
+          refresh-token-path: /auth/token
+          ignored-paths:
+            - path: /auth/login
+            - path: /user
+              method: POST        # only POST is ignored, GET /user still requires auth
       jwt:
         issuer: my-service
         token-format: JWS
@@ -498,6 +512,8 @@ group:
 Key configuration points:
 - **`ignored-paths`**: requests matching these paths bypass authentication entirely. You can
   optionally restrict by HTTP method (e.g. only `POST /user` is public, but `GET /user` requires auth).
+- **`protected-paths`**: the inverse of `ignored-paths`. Only the listed paths require authentication;
+  everything else is skipped. Only one of `ignored-paths` or `protected-paths` may be used per filter.
 - **`refresh-token-path`**: the only path that accepts refresh tokens. All other paths reject them.
 - **`token-format`**: how the library creates tokens. Defaults to `JWS` (see [Token formats](#token-formats)).
 - **`expiration`**: access tokens default to 10 minutes, refresh tokens to 24 hours.
@@ -574,9 +590,12 @@ group:
   phorus:
     security:
       mode: IDP_BRIDGE
-      refresh-token-path: /auth/token
-      ignored-paths:
-        - path: /auth/bridge
+      filters:
+        token:
+          enabled: true
+          refresh-token-path: /auth/token
+          ignored-paths:
+            - path: /auth/bridge
       jwt:
         issuer: my-service
         token-format: JWS
@@ -712,8 +731,11 @@ group:
   phorus:
     security:
       mode: IDP_DELEGATED
-      ignored-paths:
-        - path: /public
+      filters:
+        token:
+          enabled: true
+          ignored-paths:
+            - path: /public
       idp:
         issuer-uri: https://your-idp.example.com
         jwk-set-uri: https://your-idp.example.com/.well-known/jwks.json
@@ -842,6 +864,194 @@ group.phorus.security.idp:
     algorithm: RSA                              # or "EC", must match the key type
     encoded-private-key: "<base64 PKCS#8 private key>"
 ```
+</details>
+
+***
+
+## API key authentication
+
+The library includes an optional API key filter that runs alongside (or instead of) token
+authentication. It extracts an API key from a configurable HTTP header, validates it, and makes
+the key identity available to your code via `ApiKeyContext`.
+
+Common use cases:
+- **Webhook receivers**: external services call your endpoint with a pre-shared API key
+- **Internal service-to-service calls**: services authenticate with API keys instead of tokens
+- **Mixed authentication**: some endpoints require a token, some require an API key, some require both.
+  Tokens identify who is calling, while API keys act as an additional access gate. For example,
+  requiring both ensures the caller is authenticated and that only an authorized service like a BFF
+  can reach the endpoint on their behalf
+
+### Static keys
+
+<details open>
+<summary><b>Configuring API keys in application.yml</b></summary>
+
+The simplest setup uses static keys defined in configuration. Each key has a name (or id)
+and a value (the secret). The filter compares the header value against all configured values using
+constant-time comparison to prevent timing attacks, and resolves the matching key name.
+
+```yaml
+group:
+  phorus:
+    security:
+      filters:
+        api-key:
+          enabled: true
+          header: X-API-KEY              # default, can be changed
+          keys:
+            default: ${API_KEY}          # name: "default", value from env var
+            partner-a: ${PARTNER_A_KEY}  # name: "partner-a"
+            partner-b: ${PARTNER_B_KEY}  # name: "partner-b"
+          ignored-paths:
+            - path: /actuator
+            - path: /swagger-ui
+```
+
+When a request arrives with `X-API-KEY: <value>` and the value matches `PARTNER_A_KEY`, the request will be accepted, 
+and `ApiKeyContext` will contain `keyId = "partner-a"`.
+
+</details>
+
+### Custom API key validator
+
+<details>
+<summary><b>Dynamic validation with the ApiKeyValidator interface</b></summary>
+
+For dynamic validation (database lookup, external service call, key rotation, etc.), implement
+the `ApiKeyValidator` interface and register it as a Spring bean. The filter tries static keys
+first, then falls back to the custom validator if no static key matched. Both can be used
+together, or you can use either one on its own.
+
+```kotlin
+@Service
+class DatabaseApiKeyValidator(
+    private val apiKeyRepository: ApiKeyRepository,
+) : ApiKeyValidator {
+    override fun validate(apiKey: String): ApiKeyValidationResult {
+        val entity = apiKeyRepository.findByKeyHash(hash(apiKey))
+            ?: return ApiKeyValidationResult(valid = false)
+
+        if (entity.revoked) return ApiKeyValidationResult(valid = false)
+
+        return ApiKeyValidationResult(
+            valid = true,
+            keyId = entity.name,
+            metadata = mapOf("ownerId" to entity.ownerId.toString()),
+        )
+    }
+}
+```
+
+The `metadata` map is stored in `ApiKeyContextData.metadata` and can carry any extra information
+about the key (owner, scopes, rate limit tier, etc.).
+
+**Security note**: When implementing the validator for database or cache lookups, use constant-time
+comparison (e.g. `MessageDigest.isEqual()`) to compare stored API keys with the provided key.
+This prevents timing attacks where an attacker could measure response times to progressively
+guess the key.
+
+**Performance note**: You probably don't want to make database lookups for every request. The example
+shows a simple implementation for illustration purposes. In a production system, you would want to
+implement caching or other optimization strategies.
+
+</details>
+
+### Reading API key identity
+
+<details>
+<summary><b>Using ApiKeyContext in controllers and services</b></summary>
+
+After successful API key authentication, the key identity is available via
+`ApiKeyContext.context.get()`, similar to how `AuthContext` works for token authentication.
+
+```kotlin
+@RestController
+class WebhookController {
+    @PostMapping("/webhook/callback")
+    suspend fun handleCallback(@RequestBody payload: WebhookPayload) {
+        val apiKey = ApiKeyContext.context.get()
+        println("Callback from: ${apiKey.keyId}")        // e.g. "partner-a"
+        println("Owner: ${apiKey.metadata["ownerId"]}")    // from custom validator
+    }
+}
+```
+
+Alternatively, you can use `@RequestHeader` parameter injection to convert the raw header
+value into `ApiKeyContextData` directly:
+
+```kotlin
+@PostMapping("/webhook/callback")
+suspend fun handleCallback(
+    @RequestHeader("X-API-KEY") apiKey: ApiKeyContextData,
+    @RequestBody payload: WebhookPayload,
+) {
+    println("Callback from: ${apiKey.keyId}")
+}
+```
+
+`ApiKeyContextData` has two fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `keyId` | `String?` | The resolved identifier (map key for static keys, or from the validator) |
+| `metadata` | `Map<String, String>` | Extra key-value data from the validator (empty for static keys) |
+
+</details>
+
+### Dual authentication (token + API key)
+
+<details>
+<summary><b>Requiring both API key and JWT token on the same endpoint</b></summary>
+
+When both filters are enabled, a request must satisfy **all** active filters unless the request
+path is skipped by that filter's path filtering configuration (`ignored-paths` or `protected-paths`).
+This gives you fine-grained control:
+
+```yaml
+group:
+  phorus:
+    security:
+      mode: STANDALONE
+      filters:
+        token:
+          enabled: true
+          refresh-token-path: /auth/token
+          ignored-paths:
+            - path: /auth/login
+            - path: /webhook          # webhooks don't need JWT
+        api-key:
+          enabled: true
+          keys:
+            webhook-partner: ${WEBHOOK_KEY}
+          ignored-paths:
+            - path: /auth             # auth endpoints don't need API key
+            - path: /api              # normal API endpoints don't need API key
+      jwt:
+        issuer: my-service
+        # ... signing config
+```
+
+With this configuration:
+
+| Path | Token ignored? | API key ignored? | Required |
+|------|---------------|-----------------|----------|
+| `/auth/login` | Yes | Yes | Nothing (public) |
+| `/api/items` | No | Yes | JWT token only |
+| `/webhook/callback` | Yes | No | API key only |
+| `/admin/dashboard` | No | No | Both JWT token AND API key |
+
+In your controller, you can read both contexts:
+
+```kotlin
+@GetMapping("/admin/dashboard")
+suspend fun dashboard(): DashboardData {
+    val auth = AuthContext.context.get()       // JWT identity
+    val apiKey = ApiKeyContext.context.get()   // API key identity
+    // both are guaranteed to be populated on this path
+}
+```
+
 </details>
 
 ***
@@ -1079,22 +1289,111 @@ class UserService(
 
 </details>
 
-### Disabling the auth filter
+### Path filtering modes
 
 <details>
-<summary><b>Turning off automatic authentication</b></summary>
+<summary><b>Controlling which paths require authentication</b></summary>
 
-For integration testing or specific service configurations where you handle authentication
-yourself, you can disable the auth filter entirely:
+Each filter supports two mutually exclusive modes for controlling which paths require authentication.
+Only one may be configured per filter; setting both causes the application to **fail at startup** with an `IllegalArgumentException`.
+
+**`ignored-paths`** (default approach): all paths require authentication **except** the listed ones.
 
 ```yaml
 group:
   phorus:
     security:
-      enable-filter: false
+      filters:
+        token:
+          enabled: true
+          ignored-paths:
+            - path: /auth/login
+            - path: /catalog         # public catalog
+              method: GET            # only GET is public, POST /catalog requires auth
 ```
 
-When the filter is disabled, no authentication is performed and `AuthContext` is not populated.
+**`protected-paths`** (inverse approach): **only** the listed paths require authentication;
+everything else is skipped.
+
+```yaml
+group:
+  phorus:
+    security:
+      filters:
+        api-key:
+          enabled: true
+          keys:
+            partner: ${PARTNER_KEY}
+          protected-paths:
+            - path: /webhook         # only webhook endpoints need an API key
+            - path: /partner-api
+```
+
+Both modes support optional HTTP method constraints. When `method` is omitted, all HTTP methods
+are matched.
+
+</details>
+
+### Disabling filters
+
+<details>
+<summary><b>Turning off automatic authentication</b></summary>
+
+Both authentication filters are **disabled by default**.
+Each filter can be enabled/disabled independently. When disabled, the filter is completely
+skipped and its context is not populated.
+
+**Enable only token authentication:**
+
+```yaml
+group:
+  phorus:
+    security:
+      filters:
+        token:
+          enabled: true
+        api-key:
+          enabled: false  # default, can be skipped
+```
+
+**Enable only API key authentication:**
+
+```yaml
+group:
+  phorus:
+    security:
+      filters:
+        token:
+          enabled: false  # default, can be skipped
+        api-key:
+          enabled: true
+```
+
+**Enable both filters** (requests must pass both authentication filters unless skipped by path filtering):
+
+```yaml
+group:
+  phorus:
+    security:
+      filters:
+        token:
+          enabled: true
+        api-key:
+          enabled: true
+```
+
+**Disable both filters** (no authentication filtering at all):
+
+```yaml
+group:
+  phorus:
+    security:
+      filters:
+        token:
+          enabled: false  # default, can be skipped
+        api-key:
+          enabled: false  # default, can be skipped
+```
 
 </details>
 
@@ -1103,9 +1402,9 @@ When the filter is disabled, no authentication is performed and `AuthContext` is
 The library integrates with [metrics-commons](https://github.com/phorus-group/metrics-commons) to
 record authentication performance and failure patterns.
 
-### Authentication duration timer
+### Token authentication duration timer
 
-Every authentication request records a timer named `auth.authentication` with tags:
+Every token authentication request records a timer named `auth.jwt.token.authentication` with tags:
 
 | Tag | Example values |
 |-----|---------------|
@@ -1120,14 +1419,35 @@ This single metric provides:
 Example Prometheus queries:
 ```promql
 # p95 authentication latency by mode
-histogram_quantile(0.95, rate(auth_authentication_seconds_bucket[5m]))
+histogram_quantile(0.95, rate(auth_jwt_token_authentication_seconds_bucket[5m]))
 
 # Authentication failure rate
-rate(auth_authentication_seconds_count{exception!="None"}[5m])
-/ rate(auth_authentication_seconds_count[5m])
+rate(auth_jwt_token_authentication_seconds_count{exception!="None"}[5m])
+/ rate(auth_jwt_token_authentication_seconds_count[5m])
 
 # Top failure reasons
-topk(5, sum by (exception) (rate(auth_authentication_seconds_count{exception!="None"}[5m])))
+topk(5, sum by (exception) (rate(auth_jwt_token_authentication_seconds_count{exception!="None"}[5m])))
+```
+
+### API key authentication timer
+
+Every API key authentication request records a timer named `auth.api.key.authentication` with tags:
+
+| Tag | Example values |
+|-----|---------------|
+| `exception` | `None` (success), `Unauthorized`, etc. |
+
+Example Prometheus queries:
+```promql
+# p95 API key authentication latency
+histogram_quantile(0.95, rate(auth_api_key_authentication_seconds_bucket[5m]))
+
+# API key authentication failure rate
+rate(auth_api_key_authentication_seconds_count{exception!="None"}[5m])
+/ rate(auth_api_key_authentication_seconds_count[5m])
+
+# Top API key failure reasons
+topk(5, sum by (exception) (rate(auth_api_key_authentication_seconds_count{exception!="None"}[5m])))
 ```
 
 ### Disabling metrics
@@ -1149,10 +1469,19 @@ phorus:
 | Property | Default | Description |
 |----------|---------|-------------|
 | `group.phorus.security.mode` | `STANDALONE` | Authentication mode (`STANDALONE`, `IDP_BRIDGE`, or `IDP_DELEGATED`) |
-| `group.phorus.security.enable-filter` | `true` | Enable/disable the auth WebFilter |
-| `group.phorus.security.refresh-token-path` | | Path where refresh tokens are accepted |
-| `group.phorus.security.ignored-paths[].path` | | Paths that bypass authentication |
-| `group.phorus.security.ignored-paths[].method` | | Optional HTTP method constraint |
+| `group.phorus.security.filters.token.enabled` | `false` | Enable/disable the token (JWT) authentication filter |
+| `group.phorus.security.filters.token.refresh-token-path` | | Path where refresh tokens are accepted |
+| `group.phorus.security.filters.token.ignored-paths[].path` | | Paths that bypass token authentication (mutually exclusive with `protected-paths`) |
+| `group.phorus.security.filters.token.ignored-paths[].method` | | Optional HTTP method constraint |
+| `group.phorus.security.filters.token.protected-paths[].path` | | Only these paths require token authentication (mutually exclusive with `ignored-paths`) |
+| `group.phorus.security.filters.token.protected-paths[].method` | | Optional HTTP method constraint |
+| `group.phorus.security.filters.api-key.enabled` | `false` | Enable/disable the API key authentication filter |
+| `group.phorus.security.filters.api-key.header` | `X-API-KEY` | HTTP header name to read the API key from |
+| `group.phorus.security.filters.api-key.keys.<name>` | | Static named API keys (key = identity name, value = secret) |
+| `group.phorus.security.filters.api-key.ignored-paths[].path` | | Paths that bypass API key authentication (mutually exclusive with `protected-paths`) |
+| `group.phorus.security.filters.api-key.ignored-paths[].method` | | Optional HTTP method constraint |
+| `group.phorus.security.filters.api-key.protected-paths[].path` | | Only these paths require API key authentication (mutually exclusive with `ignored-paths`) |
+| `group.phorus.security.filters.api-key.protected-paths[].method` | | Optional HTTP method constraint |
 | `group.phorus.security.jwt.issuer` | | Issuer claim (`iss`) embedded in created tokens |
 | `group.phorus.security.jwt.token-format` | `JWS` | Token creation format: `JWS`, `JWE`, or `NESTED_JWE` |
 | `group.phorus.security.jwt.signing.algorithm` | `EC` | JCA key-factory algorithm |

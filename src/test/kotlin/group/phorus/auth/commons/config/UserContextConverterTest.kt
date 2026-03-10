@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.mockito.kotlin.*
+import org.springframework.beans.factory.ObjectProvider
 import java.util.*
 
 /**
@@ -46,11 +47,17 @@ class UserContextConverterTest {
         private fun buildConfig(mode: AuthMode = AuthMode.STANDALONE) =
             SecurityConfiguration(mode = mode)
 
+        private fun idpAuthenticatorProvider(idpAuth: IdpAuthenticator? = null): ObjectProvider<IdpAuthenticator> {
+            val provider = mock<ObjectProvider<IdpAuthenticator>>()
+            whenever(provider.getIfAvailable()).thenReturn(idpAuth)
+            return provider
+        }
+
         private fun buildConverter(
             mode: AuthMode = AuthMode.STANDALONE,
             authenticator: Authenticator = mockAuthenticator(),
             idpAuthenticator: IdpAuthenticator? = null,
-        ) = UserContextConverter(buildConfig(mode), authenticator, idpAuthenticator)
+        ) = UserContextConverter(buildConfig(mode), authenticator, idpAuthenticatorProvider(idpAuthenticator))
     }
 
     @Nested

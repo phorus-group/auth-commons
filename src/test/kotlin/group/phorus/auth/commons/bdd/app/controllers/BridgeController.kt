@@ -10,18 +10,21 @@ import group.phorus.auth.commons.services.TokenFactory
 import group.phorus.auth.commons.services.impl.IdpAuthenticator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 
 @RestController
 @RequestMapping("/bridge")
 class BridgeController(
-    private val idpAuthenticator: IdpAuthenticator?,
+    idpAuthenticatorProvider: ObjectProvider<IdpAuthenticator>,
     private val tokenFactory: TokenFactory,
     private val authenticator: Authenticator,
     private val userRepository: UserRepository,
     private val deviceRepository: DeviceRepository,
 ) {
+    private val idpAuthenticator = idpAuthenticatorProvider.getIfAvailable()
+
     @PostMapping("/login")
     @ResponseStatus(HttpStatus.OK)
     suspend fun bridgeLogin(

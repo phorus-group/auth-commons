@@ -58,12 +58,16 @@ class AuthFilterTest {
         private fun buildConfig(
             mode: AuthMode = AuthMode.STANDALONE,
             ignoredPaths: List<Path> = emptyList(),
+            protectedPaths: List<Path> = emptyList(),
             refreshTokenPath: String? = null,
         ) = SecurityConfiguration(
             mode = mode,
-            ignoredPaths = ignoredPaths,
-            refreshTokenPath = refreshTokenPath,
-        )
+        ).apply {
+            filters.token.enabled = true
+            filters.token.ignoredPaths = ignoredPaths
+            filters.token.protectedPaths = protectedPaths
+            filters.token.refreshTokenPath = refreshTokenPath
+        }
 
         private fun mockAuthenticator(returnData: AuthData = ACCESS_AUTH_DATA): Authenticator {
             val authenticator = mock<Authenticator>()
@@ -89,6 +93,12 @@ class AuthFilterTest {
             return MockServerWebExchange.from(requestBuilder.build())
         }
 
+        private fun idpAuthenticatorProvider(idpAuth: IdpAuthenticator? = null): ObjectProvider<IdpAuthenticator> {
+            val provider = mock<ObjectProvider<IdpAuthenticator>>()
+            whenever(provider.getIfAvailable()).thenReturn(idpAuth)
+            return provider
+        }
+
         private fun emptyMetricsProvider(): ObjectProvider<MetricsRecorder> = mock()
 
         private fun noOpChain(): WebFilterChain =
@@ -110,7 +120,7 @@ class AuthFilterTest {
         @Test
         fun `throws Unauthorized when Authorization header is missing`() {
             val config = buildConfig()
-            val filter = AuthFilter(config, mockAuthenticator(), null, emptyMetricsProvider())
+            val filter = AuthFilter(config, mockAuthenticator(), idpAuthenticatorProvider(), emptyMetricsProvider())
             val exchange = buildExchange(authHeader = null)
 
             assertThrows<Unauthorized> { invokeFilter(filter, exchange) }
@@ -119,7 +129,7 @@ class AuthFilterTest {
         @Test
         fun `throws Unauthorized when Authorization header is too short`() {
             val config = buildConfig()
-            val filter = AuthFilter(config, mockAuthenticator(), null, emptyMetricsProvider())
+            val filter = AuthFilter(config, mockAuthenticator(), idpAuthenticatorProvider(), emptyMetricsProvider())
             val exchange = buildExchange(authHeader = "Bear")
 
             assertThrows<Unauthorized> { invokeFilter(filter, exchange) }
@@ -128,7 +138,7 @@ class AuthFilterTest {
         @Test
         fun `throws Unauthorized when Bearer prefix is missing`() {
             val config = buildConfig()
-            val filter = AuthFilter(config, mockAuthenticator(), null, emptyMetricsProvider())
+            val filter = AuthFilter(config, mockAuthenticator(), idpAuthenticatorProvider(), emptyMetricsProvider())
             val exchange = buildExchange(authHeader = "Basic dXNlcjpwYXNz")
 
             assertThrows<Unauthorized> { invokeFilter(filter, exchange) }
@@ -138,7 +148,7 @@ class AuthFilterTest {
         fun `extracts token after Bearer prefix`() {
             val authenticator = mockAuthenticator()
             val config = buildConfig()
-            val filter = AuthFilter(config, authenticator, null, emptyMetricsProvider())
+            val filter = AuthFilter(config, authenticator, idpAuthenticatorProvider(), emptyMetricsProvider())
             val exchange = buildExchange(authHeader = "Bearer my-jwt-token")
 
             invokeFilter(filter, exchange)
@@ -155,7 +165,7 @@ class AuthFilterTest {
         fun `bypasses authentication for ignored paths`() {
             val config = buildConfig(ignoredPaths = listOf(Path(path = "/auth/login")))
             val authenticator = mockAuthenticator()
-            val filter = AuthFilter(config, authenticator, null, emptyMetricsProvider())
+            val filter = AuthFilter(config, authenticator, idpAuthenticatorProvider(), emptyMetricsProvider())
             val exchange = buildExchange(path = "/auth/login", authHeader = null)
 
             invokeFilter(filter, exchange)
@@ -167,7 +177,7 @@ class AuthFilterTest {
         fun `bypasses authentication for ignored path with matching method`() {
             val config = buildConfig(ignoredPaths = listOf(Path(path = "/auth/login", method = "POST")))
             val authenticator = mockAuthenticator()
-            val filter = AuthFilter(config, authenticator, null, emptyMetricsProvider())
+            val filter = AuthFilter(config, authenticator, idpAuthenticatorProvider(), emptyMetricsProvider())
             val exchange = buildExchange(path = "/auth/login", method = HttpMethod.POST, authHeader = null)
 
             invokeFilter(filter, exchange)
@@ -178,7 +188,7 @@ class AuthFilterTest {
         @Test
         fun `does not bypass when method does not match ignored path`() {
             val config = buildConfig(ignoredPaths = listOf(Path(path = "/auth/login", method = "POST")))
-            val filter = AuthFilter(config, mockAuthenticator(), null, emptyMetricsProvider())
+            val filter = AuthFilter(config, mockAuthenticator(), idpAuthenticatorProvider(), emptyMetricsProvider())
             val exchange = buildExchange(path = "/auth/login", method = HttpMethod.GET, authHeader = null)
 
             assertThrows<Unauthorized> { invokeFilter(filter, exchange) }
@@ -187,7 +197,7 @@ class AuthFilterTest {
         @Test
         fun `does not bypass for non-matching paths`() {
             val config = buildConfig(ignoredPaths = listOf(Path(path = "/auth/login")))
-            val filter = AuthFilter(config, mockAuthenticator(), null, emptyMetricsProvider())
+            val filter = AuthFilter(config, mockAuthenticator(), idpAuthenticatorProvider(), emptyMetricsProvider())
             val exchange = buildExchange(path = "/api/protected", authHeader = null)
 
             assertThrows<Unauthorized> { invokeFilter(filter, exchange) }
@@ -203,7 +213,7 @@ class AuthFilterTest {
             val authenticator = mockAuthenticator()
             val idpAuth = mockIdpAuthenticator()
             val config = buildConfig(mode = AuthMode.STANDALONE)
-            val filter = AuthFilter(config, authenticator, idpAuth, emptyMetricsProvider())
+            val filter = AuthFilter(config, authenticator, idpAuthenticatorProvider(idpAuth), emptyMetricsProvider())
 
             invokeFilter(filter, buildExchange())
 
@@ -216,7 +226,7 @@ class AuthFilterTest {
             val authenticator = mockAuthenticator()
             val idpAuth = mockIdpAuthenticator()
             val config = buildConfig(mode = AuthMode.IDP_BRIDGE)
-            val filter = AuthFilter(config, authenticator, idpAuth, emptyMetricsProvider())
+            val filter = AuthFilter(config, authenticator, idpAuthenticatorProvider(idpAuth), emptyMetricsProvider())
 
             invokeFilter(filter, buildExchange())
 
@@ -229,7 +239,7 @@ class AuthFilterTest {
             val authenticator = mockAuthenticator()
             val idpAuth = mockIdpAuthenticator()
             val config = buildConfig(mode = AuthMode.IDP_DELEGATED)
-            val filter = AuthFilter(config, authenticator, idpAuth, emptyMetricsProvider())
+            val filter = AuthFilter(config, authenticator, idpAuthenticatorProvider(idpAuth), emptyMetricsProvider())
 
             invokeFilter(filter, buildExchange())
 
@@ -240,7 +250,7 @@ class AuthFilterTest {
         @Test
         fun `throws IllegalStateException in IDP_DELEGATED without IdpAuthenticator`() {
             val config = buildConfig(mode = AuthMode.IDP_DELEGATED)
-            val filter = AuthFilter(config, mockAuthenticator(), null, emptyMetricsProvider())
+            val filter = AuthFilter(config, mockAuthenticator(), idpAuthenticatorProvider(), emptyMetricsProvider())
 
             assertThrows<IllegalStateException> { invokeFilter(filter, buildExchange()) }
         }
@@ -254,7 +264,7 @@ class AuthFilterTest {
         fun `rejects refresh token when refreshTokenPath is not configured`() {
             val authenticator = mockAuthenticator(REFRESH_AUTH_DATA)
             val config = buildConfig(refreshTokenPath = null)
-            val filter = AuthFilter(config, authenticator, null, emptyMetricsProvider())
+            val filter = AuthFilter(config, authenticator, idpAuthenticatorProvider(), emptyMetricsProvider())
 
             assertThrows<Unauthorized> {
                 invokeFilter(filter, buildExchange(path = "/api/something"))
@@ -265,7 +275,7 @@ class AuthFilterTest {
         fun `rejects refresh token on non-matching path`() {
             val authenticator = mockAuthenticator(REFRESH_AUTH_DATA)
             val config = buildConfig(refreshTokenPath = "/auth/token")
-            val filter = AuthFilter(config, authenticator, null, emptyMetricsProvider())
+            val filter = AuthFilter(config, authenticator, idpAuthenticatorProvider(), emptyMetricsProvider())
 
             assertThrows<Unauthorized> {
                 invokeFilter(filter, buildExchange(path = "/api/something"))
@@ -276,7 +286,7 @@ class AuthFilterTest {
         fun `allows refresh token on matching path`() {
             val authenticator = mockAuthenticator(REFRESH_AUTH_DATA)
             val config = buildConfig(refreshTokenPath = "/auth/token")
-            val filter = AuthFilter(config, authenticator, null, emptyMetricsProvider())
+            val filter = AuthFilter(config, authenticator, idpAuthenticatorProvider(), emptyMetricsProvider())
 
             invokeFilter(filter, buildExchange(path = "/auth/token"))
         }
@@ -285,9 +295,58 @@ class AuthFilterTest {
         fun `allows access token on any path`() {
             val authenticator = mockAuthenticator(ACCESS_AUTH_DATA)
             val config = buildConfig(refreshTokenPath = "/auth/token")
-            val filter = AuthFilter(config, authenticator, null, emptyMetricsProvider())
+            val filter = AuthFilter(config, authenticator, idpAuthenticatorProvider(), emptyMetricsProvider())
 
             invokeFilter(filter, buildExchange(path = "/api/anything"))
+        }
+    }
+
+    @Nested
+    @DisplayName("Protected paths")
+    inner class ProtectedPaths {
+
+        @Test
+        fun `filters matching protected path`() {
+            val config = buildConfig(protectedPaths = listOf(Path("/api/secure")))
+            val filter = AuthFilter(config, mockAuthenticator(), idpAuthenticatorProvider(), emptyMetricsProvider())
+
+            invokeFilter(filter, buildExchange(path = "/api/secure/data"))
+        }
+
+        @Test
+        fun `skips non-matching protected path`() {
+            val config = buildConfig(protectedPaths = listOf(Path("/api/secure")))
+            val filter = AuthFilter(config, mockAuthenticator(), idpAuthenticatorProvider(), emptyMetricsProvider())
+
+            invokeFilter(filter, buildExchange(path = "/public/data", authHeader = null))
+        }
+
+        @Test
+        fun `protected path with method only filters matching method`() {
+            val config = buildConfig(protectedPaths = listOf(Path("/api/secure", method = "POST")))
+            val filter = AuthFilter(config, mockAuthenticator(), idpAuthenticatorProvider(), emptyMetricsProvider())
+
+            invokeFilter(filter, buildExchange(path = "/api/secure/data", method = HttpMethod.GET, authHeader = null))
+        }
+
+        @Test
+        fun `protected path with method filters matching method`() {
+            val config = buildConfig(protectedPaths = listOf(Path("/api/secure", method = "POST")))
+            val filter = AuthFilter(config, mockAuthenticator(), idpAuthenticatorProvider(), emptyMetricsProvider())
+
+            invokeFilter(filter, buildExchange(path = "/api/secure/data", method = HttpMethod.POST))
+        }
+
+        @Test
+        fun `throws IllegalArgumentException at startup when both ignoredPaths and protectedPaths are set`() {
+            val config = buildConfig(
+                ignoredPaths = listOf(Path("/ignored")),
+                protectedPaths = listOf(Path("/protected")),
+            )
+
+            assertThrows<IllegalArgumentException> {
+                AuthFilter(config, mockAuthenticator(), idpAuthenticatorProvider(), emptyMetricsProvider())
+            }
         }
     }
 }

@@ -1,7 +1,9 @@
 group.phorus.auth.commons.config.SecurityConfiguration
 group.phorus.auth.commons.config.UserContextConverter
+group.phorus.auth.commons.config.ApiKeyContextConverter
 group.phorus.auth.commons.config.PasswordEncoderConfig
 group.phorus.auth.commons.filters.AuthFilter
+group.phorus.auth.commons.filters.ApiKeyFilter
 group.phorus.auth.commons.filters.HTTPFilter
 group.phorus.auth.commons.services.impl.StandaloneAuthenticator
 group.phorus.auth.commons.services.impl.TokenFactoryImpl

@@ -15,9 +15,9 @@ import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.withContext
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.AutoConfiguration
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
+import org.springframework.core.Ordered
+import org.springframework.core.annotation.Order
 import org.springframework.http.HttpHeaders.AUTHORIZATION
-import org.springframework.http.HttpMethod
 import org.springframework.web.server.CoWebFilter
 import org.springframework.web.server.CoWebFilterChain
 import org.springframework.web.server.ServerWebExchange
@@ -35,34 +35,57 @@ import org.springframework.web.server.ServerWebExchange
  * | [AuthMode.IDP_DELEGATED] | IdP-issued tokens (JWS / JWE / nested-JWE) | [IdpAuthenticator] |
  *
  * ### Path filtering
- * - Paths listed in [SecurityConfiguration.ignoredPaths] bypass authentication entirely.
- * - Refresh tokens are only accepted on the [SecurityConfiguration.refreshTokenPath],
- *   all other paths are rejected with a 401.
+ * Two mutually exclusive modes control which paths require token authentication:
+ * - **[group.phorus.auth.commons.config.TokenFilterConfiguration.ignoredPaths]**: all paths
+ *   are filtered **except** the listed ones.
+ * - **[group.phorus.auth.commons.config.TokenFilterConfiguration.protectedPaths]**: **only**
+ *   the listed paths are filtered; everything else is skipped.
  *
- * The filter is disabled when `group.phorus.security.enable-filter` is explicitly set to `false`.
+ * If both are configured, the filter throws an [IllegalStateException].
+ *
+ * Additionally, refresh tokens are only accepted on the configured
+ * [group.phorus.auth.commons.config.TokenFilterConfiguration.refreshTokenPath];
+ * all other paths reject them with a 401.
+ *
+ * ### Filter ordering
+ * This filter runs **after** [ApiKeyFilter] so that API key validation can fail fast
+ * before requiring any JWT parsing.
+ *
+ * ### Enabling / disabling
+ * Controlled by `group.phorus.security.filters.token.enabled` (default: `false`).
  *
  * @see AuthContext
  * @see Authenticator
+ * @see group.phorus.auth.commons.config.TokenFilterConfiguration
  */
 @AutoConfiguration
-@ConditionalOnProperty(prefix = "group.phorus.security", name = ["enableFilter", "enable-filter"], havingValue = "true", matchIfMissing = true)
+@Order(Ordered.HIGHEST_PRECEDENCE + 2)
 class AuthFilter(
     private val securityConfiguration: SecurityConfiguration,
     private val authenticator: Authenticator,
-    private val idpAuthenticator: IdpAuthenticator?,
+    idpAuthenticatorProvider: ObjectProvider<IdpAuthenticator>,
     metricsProvider: ObjectProvider<MetricsRecorder>,
 ) : CoWebFilter() {
     private val headerPrefix = "Bearer "
+    private val idpAuthenticator = idpAuthenticatorProvider.getIfAvailable()
     private val metrics = metricsProvider.getIfAvailable()
 
+    init {
+        val config = securityConfiguration.filters.token
+        require(config.ignoredPaths.isEmpty() || config.protectedPaths.isEmpty()) {
+            "Token filter cannot have both ignored-paths and protected-paths configured. " +
+            "Use ignored-paths to skip specific paths, or protected-paths to only filter specific paths."
+        }
+    }
+
     override suspend fun filter(exchange: ServerWebExchange, chain: CoWebFilterChain) {
+        val tokenConfig = securityConfiguration.filters.token
+        if (!tokenConfig.enabled) return chain.filter(exchange)
+
         val path = exchange.request.path.value()
         val method = exchange.request.method
 
-        val isIgnoredPath = securityConfiguration.ignoredPaths.any {
-            path.startsWith(it.path) && (it.method == null || HttpMethod.valueOf(it.method!!) == method)
-        }
-        if (isIgnoredPath) {
+        if (shouldSkipPath(tokenConfig.ignoredPaths, tokenConfig.protectedPaths, path, method)) {
             return chain.filter(exchange)
         }
 
@@ -92,12 +115,12 @@ class AuthFilter(
         val authData = metrics?.timeAuthentication(mode) { performAuthentication() }
             ?: performAuthentication()
 
-        if (authData.tokenType == TokenType.REFRESH_TOKEN && securityConfiguration.refreshTokenPath == null)
+        if (authData.tokenType == TokenType.REFRESH_TOKEN && tokenConfig.refreshTokenPath == null)
             throw Unauthorized("Invalid access token")
 
         if (authData.tokenType == TokenType.REFRESH_TOKEN
-            && securityConfiguration.refreshTokenPath != null
-            && !path.contains(securityConfiguration.refreshTokenPath!!))
+            && tokenConfig.refreshTokenPath != null
+            && !path.contains(tokenConfig.refreshTokenPath!!))
             throw Unauthorized("Invalid access token")
 
         val authContextData = authData.mapTo<AuthContextData>()!!

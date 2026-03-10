@@ -15,16 +15,23 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
  * - A `io.micrometer.core.instrument.MeterRegistry` bean exists (e.g. via Spring Boot Actuator)
  * - The property `phorus.auth-commons.metrics.enabled` is `true` (default)
  *
- * ### Authentication duration timer
+ * ### Authentication timers
  *
- * Produces a timer named `auth.authentication` with tags:
+ * Two timers are provided for monitoring authentication performance and failures:
+ *
+ * #### Token authentication duration timer
+ * Produces a timer named `auth.jwt.token.authentication` with tags:
  * - `mode`: the authentication mode (`standalone`, `idp_bridge`, or `idp_delegated`)
  * - [TagNames.EXCEPTION]: `None` on success, or the exception class name on failure (e.g. `Unauthorized`, `ExpiredJwtException`)
  *
- * This timer provides:
+ * #### API key authentication duration timer
+ * Produces a timer named `auth.api.key.authentication` with tags:
+ * - [TagNames.EXCEPTION]: `None` on success, or the exception class name on failure
+ *
+ * Both timers provide:
  * - **Performance monitoring**: p50/p95/p99 latencies to detect slow authentication
  * - **Success rate**: ratio of exception=None to failures
- * - **Failure breakdown**: which exception types are most common
+ * - **Failure breakdown**: which exception types are most common (security monitoring)
  *
  * Consuming projects can disable metrics by setting:
  * ```yaml
@@ -58,8 +65,29 @@ class MetricsRecorder(
      */
     suspend fun <T> timeAuthentication(mode: String, block: suspend () -> T): T =
         meterRegistry.timedSuspend(
-            name = "auth.authentication",
+            name = "auth.jwt.token.authentication",
             "mode" to mode,
+            block = block,
+        )
+
+    /**
+     * Times an API key authentication operation and records duration + success/failure.
+     *
+     * Produces a timer named `auth.api.key.authentication` with tags:
+     * - [TagNames.EXCEPTION]: `None` on success, or the exception class name on failure
+     *
+     * This timer provides:
+     * - **Performance monitoring**: p50/p95/p99 latencies to detect slow API key validation
+     * - **Success rate**: ratio of exception=None to failures
+     * - **Failure breakdown**: which exception types are most common (security monitoring)
+     *
+     * @param block the API key validation operation to time.
+     * @return the result of the validation operation.
+     * @throws Exception any exception from [block], after recording its duration and type.
+     */
+    suspend fun <T> timeApiKeyAuthentication(block: suspend () -> T): T =
+        meterRegistry.timedSuspend(
+            name = "auth.api.key.authentication",
             block = block,
         )
 }

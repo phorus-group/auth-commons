@@ -37,18 +37,18 @@ class SecurityConfiguration(
     /** Authentication mode. Defaults to [AuthMode.STANDALONE]. */
     var mode: AuthMode = AuthMode.STANDALONE,
 
-    /** Whether the [group.phorus.auth.commons.filters.AuthFilter] WebFilter is enabled. Defaults to `true`. */
-    var enableFilter: Boolean? = null,
-
     /**
-     * Path where refresh-token requests are accepted.
-     * When set, the [group.phorus.auth.commons.filters.AuthFilter] allows refresh tokens
-     * **only** for requests whose path contains this value, all other paths reject refresh tokens.
+     * Per-filter configuration for authentication strategies.
+     *
+     * Each filter runs independently as a separate [org.springframework.web.server.CoWebFilter].
+     * A request must satisfy **all** active filters unless the request path is in that
+     * filter's specific [Path] ignore list.
+     *
+     * @see TokenFilterConfiguration
+     * @see ApiKeyFilterConfiguration
      */
-    var refreshTokenPath: String? = null,
-
-    /** Paths that bypass the auth filter entirely (e.g. login, public endpoints). */
-    var ignoredPaths: List<Path> = emptyList(),
+    @NestedConfigurationProperty
+    var filters: FiltersConfiguration = FiltersConfiguration(),
 
     /** JWT creation, parsing, signing, and encryption settings. */
     @NestedConfigurationProperty
@@ -108,7 +108,7 @@ enum class TokenFormat {
 }
 
 /**
- * A path pattern that should bypass the authentication filter.
+ * A path pattern that should bypass an authentication filter.
  *
  * @property path URL path prefix (e.g. `/auth/login`).
  * @property method Optional HTTP method constraint (e.g. `POST`). When `null`, all methods are ignored.
@@ -116,6 +116,102 @@ enum class TokenFormat {
 class Path(
     var path: String,
     var method: String? = null,
+)
+
+/**
+ * Container for per-filter configuration. Each property corresponds to an authentication
+ * strategy that runs as an independent [org.springframework.web.server.CoWebFilter].
+ *
+ * ### Execution order
+ *
+ * | Order | Filter | Context populated |
+ * |-------|--------|-------------------|
+ * | 1 | [group.phorus.auth.commons.filters.ApiKeyFilter] | [group.phorus.auth.commons.context.ApiKeyContext] |
+ * | 2 | [group.phorus.auth.commons.filters.AuthFilter] | [group.phorus.auth.commons.context.AuthContext] |
+ *
+ * ### Composability
+ *
+ * When multiple filters are enabled, a request must satisfy **all** of them unless the
+ * request path appears in that filter's specific [ignoredPaths][TokenFilterConfiguration.ignoredPaths].
+ *
+ * @see TokenFilterConfiguration
+ * @see ApiKeyFilterConfiguration
+ */
+class FiltersConfiguration(
+    /** JWT / Bearer token authentication filter. */
+    @NestedConfigurationProperty
+    var token: TokenFilterConfiguration = TokenFilterConfiguration(),
+
+    /** API key authentication filter. */
+    @NestedConfigurationProperty
+    var apiKey: ApiKeyFilterConfiguration = ApiKeyFilterConfiguration(),
+)
+
+/**
+ * Configuration for the JWT / Bearer token authentication filter.
+ *
+ * This filter extracts the `Authorization: Bearer <token>` header, validates the token
+ * using [group.phorus.auth.commons.services.Authenticator] or
+ * [group.phorus.auth.commons.services.impl.IdpAuthenticator], and populates
+ * [group.phorus.auth.commons.context.AuthContext].
+ *
+ * ### Path filtering modes
+ *
+ * Only one of [ignoredPaths] or [protectedPaths] may be set (non-empty) at a time:
+ * - **[ignoredPaths]**: all paths require authentication **except** the listed ones.
+ * - **[protectedPaths]**: **only** the listed paths require authentication; everything else is skipped.
+ *
+ * If both are non-empty, the application fails at startup with an [IllegalArgumentException].
+ *
+ * @property enabled Whether the token filter is active. Defaults to `false`.
+ * @property refreshTokenPath Path where refresh tokens are accepted. All other paths reject them.
+ * @property ignoredPaths Paths that bypass token authentication. Mutually exclusive with [protectedPaths].
+ * @property protectedPaths Paths that require token authentication; all others are skipped. Mutually exclusive with [ignoredPaths].
+ */
+class TokenFilterConfiguration(
+    var enabled: Boolean = false,
+    var refreshTokenPath: String? = null,
+    var ignoredPaths: List<Path> = emptyList(),
+    var protectedPaths: List<Path> = emptyList(),
+)
+
+/**
+ * Configuration for the API key authentication filter.
+ *
+ * This filter extracts the API key from the configured [header] and validates it using
+ * the following chain:
+ *
+ * 1. **Static keys**: if [keys] is non-empty, the header value is compared against the map values.
+ *    On match, the map key becomes the key id.
+ * 2. **Custom validator**: if an [ApiKeyValidator][group.phorus.auth.commons.services.ApiKeyValidator]
+ *    bean exists and no static key matched, the validator is called as a fallback.
+ * 3. If neither matches, the request is rejected with a 401. If neither is configured, an
+ *    [IllegalStateException] is thrown at request time.
+ *
+ * Both static keys and a custom validator can be used together. On successful validation,
+ * [group.phorus.auth.commons.context.ApiKeyContext] is populated with the resolved key
+ * identity and any metadata from the validator.
+ *
+ * ### Path filtering modes
+ *
+ * Only one of [ignoredPaths] or [protectedPaths] may be set (non-empty) at a time:
+ * - **[ignoredPaths]**: all paths require API key authentication **except** the listed ones.
+ * - **[protectedPaths]**: **only** the listed paths require API key authentication; everything else is skipped.
+ *
+ * If both are non-empty, the application fails at startup with an [IllegalArgumentException].
+ *
+ * @property enabled Whether the API key filter is active. Defaults to `false`.
+ * @property header HTTP header name to read the API key from. Defaults to `X-API-KEY`.
+ * @property keys Static named API keys. Map key = key identifier, map value = the secret key.
+ * @property ignoredPaths Paths that bypass API key authentication. Mutually exclusive with [protectedPaths].
+ * @property protectedPaths Paths that require API key authentication; all others are skipped. Mutually exclusive with [ignoredPaths].
+ */
+class ApiKeyFilterConfiguration(
+    var enabled: Boolean = false,
+    var header: String = "X-API-KEY",
+    var keys: Map<String, String> = emptyMap(),
+    var ignoredPaths: List<Path> = emptyList(),
+    var protectedPaths: List<Path> = emptyList(),
 )
 
 /**

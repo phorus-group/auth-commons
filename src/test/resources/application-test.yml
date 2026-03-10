@@ -23,13 +23,16 @@ spring:
 group:
   phorus:
     security:
-      refresh-token-path: /auth/token
-      ignored-paths:
-        - path: /auth/login
-        - path: /bridge/login
-        - path: /test/token
-        - path: /user
-          method: POST
+      filters:
+        token:
+          enabled: true
+          refresh-token-path: /auth/token
+          ignored-paths:
+            - path: /auth/login
+            - path: /bridge/login
+            - path: /test/token
+            - path: /user
+              method: POST
       jwt:
         issuer: phorus.group
         token-format: JWE
