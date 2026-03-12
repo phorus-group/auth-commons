@@ -1353,6 +1353,60 @@ group:
 Both modes support optional HTTP method constraints. When `method` is omitted, all HTTP methods
 are matched.
 
+**Parameterized patterns for dynamic path matching:**
+
+Paths can include variable segments using `{name}` or `{name:regex}` syntax, similar to frameworks
+like FastAPI, Symfony, and Spring. This is safer and more readable than writing full regex patterns.
+
+```yaml
+group:
+  phorus:
+    security:
+      filters:
+        token:
+          enabled: true
+          ignored-paths:
+            # Literal prefix: matches /application/active and any subpath
+            - path: /application/active
+            
+            # Variable segment: matches /application/{any-id}/status
+            - path: /application/{id}/status
+            
+            # Multiple segments: matches /application/{id}/codebtor/{codebtor-id}
+            - path: /application/{appId}/codebtor/{debtorId}
+            
+            # Regex constraint: only digits allowed
+            - path: /users/{id:\d+}
+            
+            # Custom regex: alphanumeric with dashes
+            - path: /posts/{slug:[a-z0-9-]+}
+            
+            # UUID format
+            - path: /offer/{id:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}}
+```
+
+**Parameter syntax:**
+
+- `{id}` → matches any segment (equivalent to `[^/]+`)
+- `{id:\d+}` → matches only digits
+- `{slug:[a-z0-9-]+}` → matches lowercase alphanumeric with dashes
+- `{uuid:[0-9a-f-]+}` → matches UUID-like strings
+
+**Pattern examples:**
+
+| Pattern | Matches | Does not match |
+|---------|---------|----------------|
+| `/application` | `/application`, `/application/123`, `/application/active` | `/app` |
+| `/application/{id}/status` | `/application/abc123/status`, `/application/uuid-here/status` | `/application/status`, `/application/123/submit` |
+| `/users/{id:\d+}` | `/users/123`, `/users/456` | `/users/abc`, `/users/123/profile` |
+| `/offer/{id}` | `/offer/123`, `/offer/abc` | `/offer`, `/offer/123/status` |
+| `/application/{appId}/codebtor/{debtorId}` | `/application/app1/codebtor/debt2` | `/application/app1/codebtor` |
+
+**When to use parameterized patterns:**
+
+- **Literal prefix** (default): use for simple path hierarchies where you want to match a path and all its subpaths (e.g., `/public` matches `/public/docs`, `/public/images`)
+- **Parameterized patterns**: use when you need exact path structure with variable segments (e.g., `/application/{id}/status` matches only three-segment paths with "status" at the end)
+
 </details>
 
 ### Disabling filters

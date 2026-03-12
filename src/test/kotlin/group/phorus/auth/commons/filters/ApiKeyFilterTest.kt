@@ -204,6 +204,42 @@ class ApiKeyFilterTest {
         }
 
         @Test
+        fun `bypasses authentication for parameterized pattern with path variables`() {
+            val config = buildConfig(keys = STATIC_KEYS, ignoredPaths = listOf(Path("/offer/{id}/status")))
+            val filter = ApiKeyFilter(config, validatorProvider(), emptyMetricsProvider())
+
+            invokeFilter(filter, buildExchange(path = "/offer/xyz789/status", apiKeyHeader = null))
+        }
+
+        @Test
+        fun `does not bypass for parameterized pattern with non-matching path`() {
+            val config = buildConfig(keys = STATIC_KEYS, ignoredPaths = listOf(Path("/offer/{id}/status")))
+            val filter = ApiKeyFilter(config, validatorProvider(), emptyMetricsProvider())
+
+            assertThrows<Unauthorized> {
+                invokeFilter(filter, buildExchange(path = "/offer/status", apiKeyHeader = null))
+            }
+        }
+
+        @Test
+        fun `bypasses authentication for parameterized pattern with regex constraint`() {
+            val config = buildConfig(keys = STATIC_KEYS, ignoredPaths = listOf(Path("/products/{id:\\d+}")))
+            val filter = ApiKeyFilter(config, validatorProvider(), emptyMetricsProvider())
+
+            invokeFilter(filter, buildExchange(path = "/products/42", apiKeyHeader = null))
+        }
+
+        @Test
+        fun `does not bypass for parameterized pattern when regex constraint fails`() {
+            val config = buildConfig(keys = STATIC_KEYS, ignoredPaths = listOf(Path("/products/{id:\\d+}")))
+            val filter = ApiKeyFilter(config, validatorProvider(), emptyMetricsProvider())
+
+            assertThrows<Unauthorized> {
+                invokeFilter(filter, buildExchange(path = "/products/abc", apiKeyHeader = null))
+            }
+        }
+
+        @Test
         fun `throws Unauthorized when header is missing`() {
             val config = buildConfig(keys = STATIC_KEYS)
             val filter = ApiKeyFilter(config, validatorProvider(), emptyMetricsProvider())

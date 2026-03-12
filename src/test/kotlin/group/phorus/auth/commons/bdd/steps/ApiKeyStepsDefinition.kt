@@ -37,6 +37,7 @@ class ApiKeyStepsDefinition(
             Path("/auth"),
             Path("/user"),
             Path("/test"),
+            Path("/products/{id:\\d+}"),
         )
         securityConfiguration.filters.apiKey.protectedPaths = emptyList()
 

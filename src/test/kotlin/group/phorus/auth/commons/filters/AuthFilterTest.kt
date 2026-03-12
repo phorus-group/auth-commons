@@ -202,6 +202,60 @@ class AuthFilterTest {
 
             assertThrows<Unauthorized> { invokeFilter(filter, exchange) }
         }
+
+        @Test
+        fun `bypasses authentication for parameterized pattern with path variables`() {
+            val config = buildConfig(ignoredPaths = listOf(Path(path = "/application/{id}/status")))
+            val authenticator = mockAuthenticator()
+            val filter = AuthFilter(config, authenticator, idpAuthenticatorProvider(), emptyMetricsProvider())
+            val exchange = buildExchange(path = "/application/abc123/status", authHeader = null)
+
+            invokeFilter(filter, exchange)
+
+            verifyNoInteractions(authenticator)
+        }
+
+        @Test
+        fun `does not bypass for parameterized pattern with non-matching path`() {
+            val config = buildConfig(ignoredPaths = listOf(Path(path = "/application/{id}/status")))
+            val filter = AuthFilter(config, mockAuthenticator(), idpAuthenticatorProvider(), emptyMetricsProvider())
+            val exchange = buildExchange(path = "/application/status", authHeader = null)
+
+            assertThrows<Unauthorized> { invokeFilter(filter, exchange) }
+        }
+
+        @Test
+        fun `bypasses authentication for parameterized pattern with regex constraint`() {
+            val config = buildConfig(ignoredPaths = listOf(Path(path = "/users/{id:\\d+}")))
+            val authenticator = mockAuthenticator()
+            val filter = AuthFilter(config, authenticator, idpAuthenticatorProvider(), emptyMetricsProvider())
+            val exchange = buildExchange(path = "/users/123", authHeader = null)
+
+            invokeFilter(filter, exchange)
+
+            verifyNoInteractions(authenticator)
+        }
+
+        @Test
+        fun `does not bypass for parameterized pattern when regex constraint fails`() {
+            val config = buildConfig(ignoredPaths = listOf(Path(path = "/users/{id:\\d+}")))
+            val filter = AuthFilter(config, mockAuthenticator(), idpAuthenticatorProvider(), emptyMetricsProvider())
+            val exchange = buildExchange(path = "/users/abc", authHeader = null)
+
+            assertThrows<Unauthorized> { invokeFilter(filter, exchange) }
+        }
+
+        @Test
+        fun `bypasses authentication for multiple path parameters`() {
+            val config = buildConfig(ignoredPaths = listOf(Path(path = "/application/{appId}/codebtor/{debtorId}")))
+            val authenticator = mockAuthenticator()
+            val filter = AuthFilter(config, authenticator, idpAuthenticatorProvider(), emptyMetricsProvider())
+            val exchange = buildExchange(path = "/application/app123/codebtor/debtor456", authHeader = null)
+
+            invokeFilter(filter, exchange)
+
+            verifyNoInteractions(authenticator)
+        }
     }
 
     @Nested
