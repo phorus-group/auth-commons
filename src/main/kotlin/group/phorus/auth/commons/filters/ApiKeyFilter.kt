@@ -12,6 +12,7 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.core.Ordered
 import org.springframework.core.annotation.Order
+import org.springframework.http.server.reactive.ServerHttpRequest
 import org.springframework.web.server.CoWebFilter
 import org.springframework.web.server.CoWebFilterChain
 import org.springframework.web.server.ServerWebExchange
@@ -81,15 +82,15 @@ class ApiKeyFilter(
         val apiKey = exchange.request.headers.getFirst(config.header)
             ?: throw Unauthorized("API key is missing (expected header: ${config.header})")
 
-        val contextData = metrics?.timeApiKeyAuthentication { validateKey(apiKey) }
-            ?: validateKey(apiKey)
+        val contextData = metrics?.timeApiKeyAuthentication { validateKey(apiKey, exchange.request) }
+            ?: validateKey(apiKey, exchange.request)
 
         return withContext(ApiKeyContext.context.asContextElement(value = contextData)) {
             chain.filter(exchange)
         }
     }
 
-    private fun validateKey(apiKey: String): ApiKeyContextData {
+    private fun validateKey(apiKey: String, request: ServerHttpRequest?): ApiKeyContextData {
         val config = securityConfiguration.filters.apiKey
         val apiKeyBytes = apiKey.toByteArray()
 
@@ -101,7 +102,7 @@ class ApiKeyFilter(
         }
 
         if (validator != null) {
-            val result = validator.validate(apiKey)
+            val result = validator.validate(apiKey, request)
             if (result.valid) return ApiKeyContextData(keyId = result.keyId, metadata = result.metadata)
         }
 

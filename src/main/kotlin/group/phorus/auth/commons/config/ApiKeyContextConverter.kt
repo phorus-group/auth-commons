@@ -47,7 +47,7 @@ class ApiKeyContextConverter(
         }
 
         if (validator != null) {
-            val result = validator.validate(apiKey)
+            val result = validator.validate(apiKey, null)
             if (result.valid) return ApiKeyContextData(keyId = result.keyId, metadata = result.metadata)
         }
 

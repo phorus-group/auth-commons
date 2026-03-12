@@ -147,7 +147,7 @@ class StandaloneAuthenticator(
             val headerSegment = jwt.substringBefore('.')
             val headerJson = Base64.getUrlDecoder().decode(headerSegment).toString(Charsets.UTF_8)
 
-            // Simple extraction, avoids needing an ObjectMapper for a single field
+            // Simple extraction, avoids needing a JsonMapper for a single field
             val ctyRegex = """"cty"\s*:\s*"([^"]+)"""".toRegex()
             ctyRegex.find(headerJson)?.groupValues?.get(1)
         }.getOrNull()

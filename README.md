@@ -928,7 +928,7 @@ together, or you can use either one on its own.
 class DatabaseApiKeyValidator(
     private val apiKeyRepository: ApiKeyRepository,
 ) : ApiKeyValidator {
-    override fun validate(apiKey: String): ApiKeyValidationResult {
+    override fun validate(apiKey: String, request: ServerHttpRequest?): ApiKeyValidationResult {
         val entity = apiKeyRepository.findByKeyHash(hash(apiKey))
             ?: return ApiKeyValidationResult(valid = false)
 
@@ -940,6 +940,24 @@ class DatabaseApiKeyValidator(
             metadata = mapOf("ownerId" to entity.ownerId.toString()),
         )
     }
+}
+```
+
+The `request` parameter gives you access to the full incoming HTTP request, including the path, method, headers, query
+parameters, etc., so you can make validation decisions based on the request context. For example, to
+restrict a key to a specific path prefix:
+
+```kotlin
+override fun validate(apiKey: String, request: ServerHttpRequest): ApiKeyValidationResult {
+    val entity = apiKeyRepository.findByKey(apiKey)
+        ?: return ApiKeyValidationResult(valid = false)
+
+    // Restrict this key to webhook endpoints only
+    if (!request.path.value().startsWith("/webhooks")) {
+        return ApiKeyValidationResult(valid = false)
+    }
+
+    return ApiKeyValidationResult(valid = true, keyId = entity.name)
 }
 ```
 

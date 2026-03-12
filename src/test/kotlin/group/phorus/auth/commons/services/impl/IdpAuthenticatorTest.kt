@@ -1,6 +1,6 @@
 package group.phorus.auth.commons.services.impl
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.json.JsonMapper
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
@@ -39,7 +39,7 @@ import java.util.*
 class IdpAuthenticatorTest {
 
     companion object {
-        private val mapper = ObjectMapper()
+        private val mapper = JsonMapper()
         private lateinit var wireMock: WireMockServer
         private lateinit var webClient: WebClient
 

@@ -2,6 +2,7 @@ package group.phorus.auth.commons.bdd.app.services.impl
 
 import group.phorus.auth.commons.services.ApiKeyValidationResult
 import group.phorus.auth.commons.services.ApiKeyValidator
+import org.springframework.http.server.reactive.ServerHttpRequest
 import org.springframework.stereotype.Service
 
 @Service
@@ -26,7 +27,7 @@ class TestApiKeyValidatorImpl : ApiKeyValidator {
         )
     )
 
-    override fun validate(apiKey: String): ApiKeyValidationResult {
+    override fun validate(apiKey: String, request: ServerHttpRequest?): ApiKeyValidationResult {
         return validKeys[apiKey] ?: ApiKeyValidationResult(valid = false)
     }
 }

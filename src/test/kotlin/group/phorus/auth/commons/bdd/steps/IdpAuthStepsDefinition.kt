@@ -4,7 +4,7 @@ import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
 import com.github.tomakehurst.wiremock.http.ContentTypeHeader
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.json.JsonMapper
 import group.phorus.auth.commons.config.AuthMode
 import group.phorus.auth.commons.config.SecurityConfiguration
 import group.phorus.test.commons.bdd.BaseResponseScenarioScope
@@ -44,7 +44,7 @@ class IdpAuthStepsDefinition(
                 .jettyAcceptors(1)
                 .containerThreads(10)
         )
-        private val objectMapper = ObjectMapper()
+        private val jsonMapper = JsonMapper()
 
         // EC key pair for signing (simulates the IdP's signing key)
         private val signingKeyPair = KeyPairGenerator.getInstance("EC").apply {
@@ -74,7 +74,7 @@ class IdpAuthStepsDefinition(
 
         fun buildJwksJson(): String {
             val jwk = Jwks.builder().key(signingPublicKey).id(KID).build()
-            return objectMapper.writeValueAsString(mapOf("keys" to listOf(jwk)))
+            return jsonMapper.writeValueAsString(mapOf("keys" to listOf(jwk)))
         }
     }
 

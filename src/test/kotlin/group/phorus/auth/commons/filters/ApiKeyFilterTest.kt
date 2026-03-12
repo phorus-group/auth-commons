@@ -110,7 +110,7 @@ class ApiKeyFilterTest {
         @Test
         fun `accepts key when validator returns valid`() {
             val validator = mock<ApiKeyValidator> {
-                on { validate("dynamic-key") } doReturn ApiKeyValidationResult(
+                on { validate(eq("dynamic-key"), any()) } doReturn ApiKeyValidationResult(
                     valid = true,
                     keyId = "dynamic-id",
                     metadata = mapOf("scope" to "read"),
@@ -121,13 +121,13 @@ class ApiKeyFilterTest {
 
             invokeFilter(filter, buildExchange(apiKeyHeader = "dynamic-key"))
 
-            verify(validator).validate("dynamic-key")
+            verify(validator).validate(eq("dynamic-key"), any())
         }
 
         @Test
         fun `rejects key when validator returns invalid`() {
             val validator = mock<ApiKeyValidator> {
-                on { validate("bad-key") } doReturn ApiKeyValidationResult(valid = false)
+                on { validate(eq("bad-key"), any()) } doReturn ApiKeyValidationResult(valid = false)
             }
             val config = buildConfig()
             val filter = ApiKeyFilter(config, validatorProvider(validator), emptyMetricsProvider())
@@ -156,20 +156,20 @@ class ApiKeyFilterTest {
         @Test
         fun `falls back to validator when no static key matches`() {
             val validator = mock<ApiKeyValidator> {
-                on { validate("dynamic-only") } doReturn ApiKeyValidationResult(valid = true, keyId = "from-validator")
+                on { validate(eq("dynamic-only"), any()) } doReturn ApiKeyValidationResult(valid = true, keyId = "from-validator")
             }
             val config = buildConfig(keys = STATIC_KEYS)
             val filter = ApiKeyFilter(config, validatorProvider(validator), emptyMetricsProvider())
 
             invokeFilter(filter, buildExchange(apiKeyHeader = "dynamic-only"))
 
-            verify(validator).validate("dynamic-only")
+            verify(validator).validate(eq("dynamic-only"), any())
         }
 
         @Test
         fun `rejects with 401 when both static keys and validator fail`() {
             val validator = mock<ApiKeyValidator> {
-                on { validate("unknown") } doReturn ApiKeyValidationResult(valid = false)
+                on { validate(eq("unknown"), any()) } doReturn ApiKeyValidationResult(valid = false)
             }
             val config = buildConfig(keys = STATIC_KEYS)
             val filter = ApiKeyFilter(config, validatorProvider(validator), emptyMetricsProvider())

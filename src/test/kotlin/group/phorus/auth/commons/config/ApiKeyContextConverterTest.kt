@@ -83,7 +83,7 @@ class ApiKeyContextConverterTest {
         @Test
         fun `accepts key when validator returns valid`() {
             val validator = mock<ApiKeyValidator> {
-                on { validate("dynamic-key") } doReturn ApiKeyValidationResult(
+                on { validate(eq("dynamic-key"), isNull()) } doReturn ApiKeyValidationResult(
                     valid = true,
                     keyId = "dynamic-id",
                     metadata = mapOf("scope" to "read"),
@@ -101,7 +101,7 @@ class ApiKeyContextConverterTest {
         @Test
         fun `throws Unauthorized when validator returns invalid`() {
             val validator = mock<ApiKeyValidator> {
-                on { validate("bad-key") } doReturn ApiKeyValidationResult(valid = false)
+                on { validate(eq("bad-key"), isNull()) } doReturn ApiKeyValidationResult(valid = false)
             }
             val converter = buildConverter(validator = validator)
 
@@ -113,7 +113,7 @@ class ApiKeyContextConverterTest {
         @Test
         fun `passes metadata from validator result`() {
             val validator = mock<ApiKeyValidator> {
-                on { validate("key") } doReturn ApiKeyValidationResult(
+                on { validate(eq("key"), isNull()) } doReturn ApiKeyValidationResult(
                     valid = true,
                     keyId = "id",
                     metadata = mapOf("owner" to "alice", "tier" to "premium"),
@@ -146,20 +146,20 @@ class ApiKeyContextConverterTest {
         @Test
         fun `falls back to validator when no static key matches`() {
             val validator = mock<ApiKeyValidator> {
-                on { validate("dynamic-only") } doReturn ApiKeyValidationResult(valid = true, keyId = "from-validator")
+                on { validate(eq("dynamic-only"), isNull()) } doReturn ApiKeyValidationResult(valid = true, keyId = "from-validator")
             }
             val converter = buildConverter(keys = STATIC_KEYS, validator = validator)
 
             val result = converter.convert("dynamic-only")
 
             assertEquals("from-validator", result.keyId)
-            verify(validator).validate("dynamic-only")
+            verify(validator).validate(eq("dynamic-only"), isNull())
         }
 
         @Test
         fun `throws Unauthorized when both static keys and validator fail`() {
             val validator = mock<ApiKeyValidator> {
-                on { validate("unknown") } doReturn ApiKeyValidationResult(valid = false)
+                on { validate(eq("unknown"), isNull()) } doReturn ApiKeyValidationResult(valid = false)
             }
             val converter = buildConverter(keys = STATIC_KEYS, validator = validator)
 
@@ -171,7 +171,7 @@ class ApiKeyContextConverterTest {
         @Test
         fun `returns static key result even if validator would accept the same key`() {
             val validator = mock<ApiKeyValidator> {
-                on { validate("static-secret") } doReturn ApiKeyValidationResult(
+                on { validate(eq("static-secret"), isNull()) } doReturn ApiKeyValidationResult(
                     valid = true,
                     keyId = "validator-id",
                     metadata = mapOf("from" to "validator"),

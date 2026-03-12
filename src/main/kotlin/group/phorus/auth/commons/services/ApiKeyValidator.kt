@@ -1,5 +1,7 @@
 package group.phorus.auth.commons.services
 
+import org.springframework.http.server.reactive.ServerHttpRequest
+
 /**
  * Interface for custom API key validation.
  *
@@ -15,7 +17,7 @@ package group.phorus.auth.commons.services
  * class DatabaseApiKeyValidator(
  *     private val apiKeyRepository: ApiKeyRepository,
  * ) : ApiKeyValidator {
- *     override fun validate(apiKey: String): ApiKeyValidationResult {
+ *     override fun validate(apiKey: String, request: ServerHttpRequest?): ApiKeyValidationResult {
  *         val entity = apiKeyRepository.findByKey(apiKey)
  *             ?: return ApiKeyValidationResult(valid = false)
  *         return ApiKeyValidationResult(
@@ -36,9 +38,14 @@ interface ApiKeyValidator {
      * and, optionally, its identity and metadata.
      *
      * @param apiKey The raw API key value extracted from the HTTP header.
+     * @param request The incoming HTTP request. Can be used to make validation decisions based on
+     *     the request path, headers, or other request attributes (e.g. restrict a key to specific
+     *     endpoints or HTTP methods). May be `null` when the validator is invoked outside of a filter
+     *     context, for example via the [ApiKeyContextConverter][group.phorus.auth.commons.config.ApiKeyContextConverter]
+     *     for `@RequestHeader` parameter injection.
      * @return Validation result. A [ApiKeyValidationResult.valid] of `false` causes a 401 response.
      */
-    fun validate(apiKey: String): ApiKeyValidationResult
+    fun validate(apiKey: String, request: ServerHttpRequest?): ApiKeyValidationResult
 }
 
 /**
