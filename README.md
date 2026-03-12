@@ -1008,6 +1008,9 @@ suspend fun handleCallback(
 }
 ```
 
+**Note**: using @RequestHeader to getthe apiKey is *not* compatible with a custom ApiKeyValidator
+that requires the ServerHttpRequest to function. If you need this, use the ApiKeyContext aproach instead.
+
 `ApiKeyContextData` has two fields:
 
 | Field | Type | Description |
