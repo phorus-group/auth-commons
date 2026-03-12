@@ -735,7 +735,7 @@ group:
         token:
           enabled: true
           ignored-paths:
-            - path: /public
+            - path: /public/**
       idp:
         issuer-uri: https://your-idp.example.com
         jwk-set-uri: https://your-idp.example.com/.well-known/jwks.json
@@ -904,8 +904,8 @@ group:
             partner-a: ${PARTNER_A_KEY}  # name: "partner-a"
             partner-b: ${PARTNER_B_KEY}  # name: "partner-b"
           ignored-paths:
-            - path: /actuator
-            - path: /swagger-ui
+            - path: /actuator/**
+            - path: /swagger-ui/**
 ```
 
 When a request arrives with `X-API-KEY: <value>` and the value matches `PARTNER_A_KEY`, the request will be accepted, 
@@ -1040,14 +1040,14 @@ group:
           refresh-token-path: /auth/token
           ignored-paths:
             - path: /auth/login
-            - path: /webhook          # webhooks don't need JWT
+            - path: /webhook/**       # webhooks don't need JWT
         api-key:
           enabled: true
           keys:
             webhook-partner: ${WEBHOOK_KEY}
           ignored-paths:
-            - path: /auth             # auth endpoints don't need API key
-            - path: /api              # normal API endpoints don't need API key
+            - path: /auth/**          # auth endpoints don't need API key
+            - path: /api/**           # normal API endpoints don't need API key
       jwt:
         issuer: my-service
         # ... signing config
@@ -1346,17 +1346,17 @@ group:
           keys:
             partner: ${PARTNER_KEY}
           protected-paths:
-            - path: /webhook         # only webhook endpoints need an API key
-            - path: /partner-api
+            - path: /webhook/**      # only webhook endpoints need an API key
+            - path: /partner-api/**
 ```
 
 Both modes support optional HTTP method constraints. When `method` is omitted, all HTTP methods
 are matched.
 
-**Parameterized patterns for dynamic path matching:**
+**Spring PathPattern syntax:**
 
-Paths can include variable segments using `{name}` or `{name:regex}` syntax, similar to frameworks
-like FastAPI, Symfony, and Spring. This is safer and more readable than writing full regex patterns.
+All paths use Spring PathPattern semantics. Exact literals match only the specified path; use wildcards
+or path parameters for flexible matching:
 
 ```yaml
 group:
@@ -1366,46 +1366,57 @@ group:
         token:
           enabled: true
           ignored-paths:
-            # Literal prefix: matches /application/active and any subpath
-            - path: /application/active
-            
+            # Exact match: only /auth/login, not /auth/login/extra
+            - path: /auth/login
+
+            # Recursive wildcard: /application/active and any subpath
+            - path: /application/active/**
+
+            # Single wildcard: one extra segment only
+            - path: /files/*
+
             # Variable segment: matches /application/{any-id}/status
             - path: /application/{id}/status
-            
+
             # Multiple segments: matches /application/{id}/codebtor/{codebtor-id}
             - path: /application/{appId}/codebtor/{debtorId}
-            
+
             # Regex constraint: only digits allowed
             - path: /users/{id:\d+}
-            
+
             # Custom regex: alphanumeric with dashes
             - path: /posts/{slug:[a-z0-9-]+}
-            
+
             # UUID format
             - path: /offer/{id:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}}
 ```
 
-**Parameter syntax:**
+**Wildcard and parameter syntax:**
 
-- `{id}` → matches any segment (equivalent to `[^/]+`)
-- `{id:\d+}` → matches only digits
-- `{slug:[a-z0-9-]+}` → matches lowercase alphanumeric with dashes
-- `{uuid:[0-9a-f-]+}` → matches UUID-like strings
+- `/path` -> exact match only
+- `/path/*` -> one additional path segment (e.g., `/path/item` but not `/path/item/sub`)
+- `/path/**` -> any number of additional segments (e.g., `/path/a`, `/path/a/b/c`)
+- `{id}` -> matches any single segment (equivalent to `[^/]+`)
+- `{id:\d+}` -> matches only digits
+- `{slug:[a-z0-9-]+}` -> matches lowercase alphanumeric with dashes
 
 **Pattern examples:**
 
 | Pattern | Matches | Does not match |
 |---------|---------|----------------|
-| `/application` | `/application`, `/application/123`, `/application/active` | `/app` |
+| `/application` | `/application` | `/application/123`, `/app` |
+| `/application/**` | `/application`, `/application/123`, `/application/active/sub` | `/app` |
 | `/application/{id}/status` | `/application/abc123/status`, `/application/uuid-here/status` | `/application/status`, `/application/123/submit` |
 | `/users/{id:\d+}` | `/users/123`, `/users/456` | `/users/abc`, `/users/123/profile` |
 | `/offer/{id}` | `/offer/123`, `/offer/abc` | `/offer`, `/offer/123/status` |
 | `/application/{appId}/codebtor/{debtorId}` | `/application/app1/codebtor/debt2` | `/application/app1/codebtor` |
 
-**When to use parameterized patterns:**
+**When to use each pattern type:**
 
-- **Literal prefix** (default): use for simple path hierarchies where you want to match a path and all its subpaths (e.g., `/public` matches `/public/docs`, `/public/images`)
-- **Parameterized patterns**: use when you need exact path structure with variable segments (e.g., `/application/{id}/status` matches only three-segment paths with "status" at the end)
+- **Exact** (`/path`): a specific endpoint such as `/auth/login` or `/health`
+- **Recursive wildcard** (`/path/**`): a path prefix and all its subpaths, e.g., `/public/**` for a public area
+- **Single wildcard** (`/path/*`): exactly one variable segment, e.g., `/files/*` for direct file access
+- **Path parameter** (`/path/{id}`): a named variable segment with optional regex constraint
 
 </details>
 

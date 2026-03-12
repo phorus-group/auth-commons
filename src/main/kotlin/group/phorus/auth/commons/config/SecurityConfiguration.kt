@@ -108,27 +108,19 @@ enum class TokenFormat {
 }
 
 /**
- * A path pattern that should bypass an authentication filter.
+ * A path pattern that configures which requests a filter should include or exclude.
  *
  * ### Path matching
  *
- * The [path] property supports two matching modes:
- *
- * 1. **Literal prefix** (default): matches any request path that starts with the specified value.
- *    - Example: `/api/users` matches `/api/users`, `/api/users/123`, `/api/users/123/profile`
- *
- * 2. **Parameterized pattern**: use `{name}` or `{name:regex}` syntax for variable segments.
- *    - Example: `/users/{id}` matches `/users/123`, `/users/abc`
- *    - Example: `/users/{id:\d+}` matches `/users/123` but not `/users/abc`
- *    - Example: `/application/{id}/status` matches `/application/abc123/status`
- *      but not `/application/status` or `/application/abc123/other`
+ * All paths use Spring [PathPattern][org.springframework.web.util.pattern.PathPattern] syntax.
+ * For details of the path pattern syntax see [PathPattern][org.springframework.web.util.pattern.PathPattern].
  *
  * ### HTTP method filtering
  *
  * When [method] is set, only requests matching both the path pattern and the HTTP method are
  * affected. When [method] is `null`, all HTTP methods are matched.
  *
- * @property path URL path prefix or parameterized pattern. Use `{name}` or `{name:regex}` for variable segments.
+ * @property path Spring PathPattern string.
  * @property method Optional HTTP method constraint (e.g. `POST`). When `null`, all methods are matched.
  */
 class Path(
@@ -181,19 +173,15 @@ class FiltersConfiguration(
  *
  * If both are non-empty, the application fails at startup with an [IllegalArgumentException].
  *
- * ### Path matching (literal vs parameterized)
+ * ### Path matching
  *
- * Each [Path] can be either a literal prefix or a parameterized pattern:
- * - **Literal prefix**: `/api/public` matches any path starting with `/api/public`
- * - **Parameterized pattern**: `/offer/{id}/status` matches paths like `/offer/123/status` with variable segments
- *
- * Parameters use `{name}` or `{name:regex}` syntax. The `{name}` variant matches any segment,
- * while `{name:regex}` applies a regex constraint (e.g., `{id:\d+}` for digits only).
+ * All paths use Spring [PathPattern][org.springframework.web.util.pattern.PathPattern] syntax.
+ * For details of the path pattern syntax see [PathPattern][org.springframework.web.util.pattern.PathPattern].
  *
  * @property enabled Whether the token filter is active. Defaults to `false`.
  * @property refreshTokenPath Path where refresh tokens are accepted. All other paths reject them.
- * @property ignoredPaths Paths that bypass token authentication. Supports literal prefixes and parameterized patterns (use `{name}` or `{name:regex}`). Mutually exclusive with [protectedPaths].
- * @property protectedPaths Paths that require token authentication; all others are skipped. Supports literal prefixes and parameterized patterns (use `{name}` or `{name:regex}`). Mutually exclusive with [ignoredPaths].
+ * @property ignoredPaths Paths that bypass token authentication. Uses Spring PathPattern syntax. Mutually exclusive with [protectedPaths].
+ * @property protectedPaths Paths that require token authentication; all others are skipped. Uses Spring PathPattern syntax. Mutually exclusive with [ignoredPaths].
  */
 class TokenFilterConfiguration(
     var enabled: Boolean = false,
@@ -227,11 +215,16 @@ class TokenFilterConfiguration(
  *
  * If both are non-empty, the application fails at startup with an [IllegalArgumentException].
  *
+ * ### Path matching
+ *
+ * All paths use Spring [PathPattern][org.springframework.web.util.pattern.PathPattern] syntax.
+ * For details of the path pattern syntax see [PathPattern][org.springframework.web.util.pattern.PathPattern].
+ *
  * @property enabled Whether the API key filter is active. Defaults to `false`.
  * @property header HTTP header name to read the API key from. Defaults to `X-API-KEY`.
  * @property keys Static named API keys. Map key = key identifier, map value = the secret key.
- * @property ignoredPaths Paths that bypass API key authentication. Supports literal prefixes and parameterized patterns (use `{name}` or `{name:regex}`). Mutually exclusive with [protectedPaths].
- * @property protectedPaths Paths that require API key authentication; all others are skipped. Supports literal prefixes and parameterized patterns (use `{name}` or `{name:regex}`). Mutually exclusive with [ignoredPaths].
+ * @property ignoredPaths Paths that bypass API key authentication. Uses Spring PathPattern syntax. Mutually exclusive with [protectedPaths].
+ * @property protectedPaths Paths that require API key authentication; all others are skipped. Uses Spring PathPattern syntax. Mutually exclusive with [ignoredPaths].
  */
 class ApiKeyFilterConfiguration(
     var enabled: Boolean = false,

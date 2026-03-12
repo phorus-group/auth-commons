@@ -33,15 +33,15 @@ class ApiKeyStepsDefinition(
             "partner-b" to "partner-b-secret",
         )
         securityConfiguration.filters.apiKey.ignoredPaths = listOf(
-            Path("/api-key-ignored"),
-            Path("/auth"),
-            Path("/user"),
-            Path("/test"),
+            Path("/api-key-ignored/**"),
+            Path("/auth/**"),
+            Path("/user/**"),
+            Path("/test/**"),
             Path("/products/{id:\\d+}"),
         )
         securityConfiguration.filters.apiKey.protectedPaths = emptyList()
 
-        securityConfiguration.filters.token.ignoredPaths += listOf(Path("/api-key-protected/identity"), Path("/api-key-ignored"))
+        securityConfiguration.filters.token.ignoredPaths += listOf(Path("/api-key-protected/identity"), Path("/api-key-ignored/**"))
     }
 
     @Before("@apikey-protected-paths")
@@ -57,12 +57,12 @@ class ApiKeyStepsDefinition(
         )
         securityConfiguration.filters.apiKey.ignoredPaths = emptyList()
         securityConfiguration.filters.apiKey.protectedPaths = listOf(
-            Path("/api-key-protected"),
+            Path("/api-key-protected/**"),
         )
 
         securityConfiguration.filters.token.ignoredPaths += listOf(
             Path("/api-key-protected/identity"),
-            Path("/api-key-ignored"),
+            Path("/api-key-ignored/**"),
         )
     }
 

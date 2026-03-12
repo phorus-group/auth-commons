@@ -256,6 +256,48 @@ class AuthFilterTest {
 
             verifyNoInteractions(authenticator)
         }
+
+        @Test
+        fun `does not bypass for exact path when request has extra segment`() {
+            val config = buildConfig(ignoredPaths = listOf(Path(path = "/auth/login")))
+            val filter = AuthFilter(config, mockAuthenticator(), idpAuthenticatorProvider(), emptyMetricsProvider())
+            val exchange = buildExchange(path = "/auth/login/extra", authHeader = null)
+
+            assertThrows<Unauthorized> { invokeFilter(filter, exchange) }
+        }
+
+        @Test
+        fun `bypasses authentication for single wildcard pattern`() {
+            val config = buildConfig(ignoredPaths = listOf(Path(path = "/users/*")))
+            val authenticator = mockAuthenticator()
+            val filter = AuthFilter(config, authenticator, idpAuthenticatorProvider(), emptyMetricsProvider())
+            val exchange = buildExchange(path = "/users/123", authHeader = null)
+
+            invokeFilter(filter, exchange)
+
+            verifyNoInteractions(authenticator)
+        }
+
+        @Test
+        fun `does not bypass for single wildcard when request has extra segment`() {
+            val config = buildConfig(ignoredPaths = listOf(Path(path = "/users/*")))
+            val filter = AuthFilter(config, mockAuthenticator(), idpAuthenticatorProvider(), emptyMetricsProvider())
+            val exchange = buildExchange(path = "/users/123/profile", authHeader = null)
+
+            assertThrows<Unauthorized> { invokeFilter(filter, exchange) }
+        }
+
+        @Test
+        fun `bypasses authentication for recursive wildcard pattern`() {
+            val config = buildConfig(ignoredPaths = listOf(Path(path = "/offer/**")))
+            val authenticator = mockAuthenticator()
+            val filter = AuthFilter(config, authenticator, idpAuthenticatorProvider(), emptyMetricsProvider())
+            val exchange = buildExchange(path = "/offer/123/status", authHeader = null)
+
+            invokeFilter(filter, exchange)
+
+            verifyNoInteractions(authenticator)
+        }
     }
 
     @Nested
@@ -361,7 +403,7 @@ class AuthFilterTest {
 
         @Test
         fun `filters matching protected path`() {
-            val config = buildConfig(protectedPaths = listOf(Path("/api/secure")))
+            val config = buildConfig(protectedPaths = listOf(Path("/api/secure/**")))
             val filter = AuthFilter(config, mockAuthenticator(), idpAuthenticatorProvider(), emptyMetricsProvider())
 
             invokeFilter(filter, buildExchange(path = "/api/secure/data"))
@@ -369,7 +411,7 @@ class AuthFilterTest {
 
         @Test
         fun `skips non-matching protected path`() {
-            val config = buildConfig(protectedPaths = listOf(Path("/api/secure")))
+            val config = buildConfig(protectedPaths = listOf(Path("/api/secure/**")))
             val filter = AuthFilter(config, mockAuthenticator(), idpAuthenticatorProvider(), emptyMetricsProvider())
 
             invokeFilter(filter, buildExchange(path = "/public/data", authHeader = null))
@@ -377,7 +419,7 @@ class AuthFilterTest {
 
         @Test
         fun `protected path with method only filters matching method`() {
-            val config = buildConfig(protectedPaths = listOf(Path("/api/secure", method = "POST")))
+            val config = buildConfig(protectedPaths = listOf(Path("/api/secure/**", method = "POST")))
             val filter = AuthFilter(config, mockAuthenticator(), idpAuthenticatorProvider(), emptyMetricsProvider())
 
             invokeFilter(filter, buildExchange(path = "/api/secure/data", method = HttpMethod.GET, authHeader = null))
@@ -385,7 +427,7 @@ class AuthFilterTest {
 
         @Test
         fun `protected path with method filters matching method`() {
-            val config = buildConfig(protectedPaths = listOf(Path("/api/secure", method = "POST")))
+            val config = buildConfig(protectedPaths = listOf(Path("/api/secure/**", method = "POST")))
             val filter = AuthFilter(config, mockAuthenticator(), idpAuthenticatorProvider(), emptyMetricsProvider())
 
             invokeFilter(filter, buildExchange(path = "/api/secure/data", method = HttpMethod.POST))

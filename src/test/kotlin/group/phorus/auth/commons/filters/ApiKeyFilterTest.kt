@@ -196,11 +196,47 @@ class ApiKeyFilterTest {
         }
 
         @Test
-        fun `bypasses authentication for ignored paths`() {
+        fun `bypasses authentication for exact ignored path`() {
             val config = buildConfig(keys = STATIC_KEYS, ignoredPaths = listOf(Path("/public")))
             val filter = ApiKeyFilter(config, validatorProvider(), emptyMetricsProvider())
 
+            invokeFilter(filter, buildExchange(path = "/public", apiKeyHeader = null))
+        }
+
+        @Test
+        fun `does not bypass for exact ignored path when request has extra segment`() {
+            val config = buildConfig(keys = STATIC_KEYS, ignoredPaths = listOf(Path("/public")))
+            val filter = ApiKeyFilter(config, validatorProvider(), emptyMetricsProvider())
+
+            assertThrows<Unauthorized> {
+                invokeFilter(filter, buildExchange(path = "/public/data", apiKeyHeader = null))
+            }
+        }
+
+        @Test
+        fun `bypasses authentication for recursive wildcard ignored path`() {
+            val config = buildConfig(keys = STATIC_KEYS, ignoredPaths = listOf(Path("/public/**")))
+            val filter = ApiKeyFilter(config, validatorProvider(), emptyMetricsProvider())
+
             invokeFilter(filter, buildExchange(path = "/public/data", apiKeyHeader = null))
+        }
+
+        @Test
+        fun `bypasses authentication for single wildcard ignored path`() {
+            val config = buildConfig(keys = STATIC_KEYS, ignoredPaths = listOf(Path("/public/*")))
+            val filter = ApiKeyFilter(config, validatorProvider(), emptyMetricsProvider())
+
+            invokeFilter(filter, buildExchange(path = "/public/data", apiKeyHeader = null))
+        }
+
+        @Test
+        fun `does not bypass for single wildcard when request has extra segment`() {
+            val config = buildConfig(keys = STATIC_KEYS, ignoredPaths = listOf(Path("/public/*")))
+            val filter = ApiKeyFilter(config, validatorProvider(), emptyMetricsProvider())
+
+            assertThrows<Unauthorized> {
+                invokeFilter(filter, buildExchange(path = "/public/data/extra", apiKeyHeader = null))
+            }
         }
 
         @Test
@@ -266,7 +302,7 @@ class ApiKeyFilterTest {
 
         @Test
         fun `filters matching protected path`() {
-            val config = buildConfig(keys = STATIC_KEYS, protectedPaths = listOf(Path("/api/secure")))
+            val config = buildConfig(keys = STATIC_KEYS, protectedPaths = listOf(Path("/api/secure/**")))
             val filter = ApiKeyFilter(config, validatorProvider(), emptyMetricsProvider())
 
             assertThrows<Unauthorized> {
@@ -276,7 +312,7 @@ class ApiKeyFilterTest {
 
         @Test
         fun `skips non-matching protected path`() {
-            val config = buildConfig(keys = STATIC_KEYS, protectedPaths = listOf(Path("/api/secure")))
+            val config = buildConfig(keys = STATIC_KEYS, protectedPaths = listOf(Path("/api/secure/**")))
             val filter = ApiKeyFilter(config, validatorProvider(), emptyMetricsProvider())
 
             invokeFilter(filter, buildExchange(path = "/public/data", apiKeyHeader = null))
@@ -284,7 +320,7 @@ class ApiKeyFilterTest {
 
         @Test
         fun `protected path with method only filters matching method`() {
-            val config = buildConfig(keys = STATIC_KEYS, protectedPaths = listOf(Path("/api/secure", method = "POST")))
+            val config = buildConfig(keys = STATIC_KEYS, protectedPaths = listOf(Path("/api/secure/**", method = "POST")))
             val filter = ApiKeyFilter(config, validatorProvider(), emptyMetricsProvider())
 
             invokeFilter(filter, buildExchange(path = "/api/secure/data", method = HttpMethod.GET, apiKeyHeader = null))
@@ -292,7 +328,7 @@ class ApiKeyFilterTest {
 
         @Test
         fun `protected path with method filters matching method`() {
-            val config = buildConfig(keys = STATIC_KEYS, protectedPaths = listOf(Path("/api/secure", method = "POST")))
+            val config = buildConfig(keys = STATIC_KEYS, protectedPaths = listOf(Path("/api/secure/**", method = "POST")))
             val filter = ApiKeyFilter(config, validatorProvider(), emptyMetricsProvider())
 
             assertThrows<Unauthorized> {
