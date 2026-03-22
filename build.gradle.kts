@@ -21,7 +21,7 @@ ext["jackson-bom.version"] = "3.1.0"
 
 group = "group.phorus"
 description = "DEPRECATED: Use authn-core:1.0.0 + authn-spring-boot-starter:2.0.0 instead. Library containing common AuthN logic for Spring based services."
-version = "2.0.11"
+version = "2.0.12"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
