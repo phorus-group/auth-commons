@@ -129,6 +129,36 @@ class Path(
 )
 
 /**
+ * A path-scoped privilege gate that requires the authenticated user to hold at least one
+ * of the listed [privileges] when accessing a matching path.
+ *
+ * ### Evaluation semantics
+ *
+ * - **OR within a gate**: the user needs **any one** of [privileges] to satisfy this gate.
+ * - **AND across gates**: multiple gates matching the same path are all required independently.
+ *   The user must satisfy **every** matching gate for a given request. To require two distinct
+ *   privileges simultaneously, configure two gates for the same path each with one privilege.
+ *
+ * ### Path matching
+ *
+ * All paths use Spring [PathPattern][org.springframework.web.util.pattern.PathPattern] syntax.
+ * For details of the path pattern syntax see [PathPattern][org.springframework.web.util.pattern.PathPattern].
+ *
+ * Gates are only evaluated after successful token authentication. Paths bypassed by
+ * [TokenFilterConfiguration.ignoredPaths] or outside [TokenFilterConfiguration.protectedPaths]
+ * are never checked.
+ *
+ * @property path Spring PathPattern string (e.g. `/api/admin/{id}`).
+ * @property method Optional HTTP method constraint. When `null`, all HTTP methods are matched.
+ * @property privileges Required privilege list. The user must hold **at least one**. An empty list means the gate has no effect.
+ */
+class PrivilegeGate(
+    var path: String,
+    var method: String? = null,
+    var privileges: List<String> = emptyList(),
+)
+
+/**
  * Container for per-filter configuration. Each property corresponds to an authentication
  * strategy that runs as an independent [org.springframework.web.server.CoWebFilter].
  *
@@ -173,6 +203,15 @@ class FiltersConfiguration(
  *
  * If both are non-empty, the application fails at startup with an [IllegalArgumentException].
  *
+ * ### Privilege gates
+ *
+ * [privilegeGates] enforce privilege-level access control on top of authentication. After a token
+ * is validated, every gate whose path matches the request is checked: the user must hold **at least
+ * one** privilege from that gate's list. Multiple gates for the same path are AND-combined: the user
+ * must satisfy every matching gate independently.
+ *
+ * Requests failing any gate receive a `403 Forbidden` response.
+ *
  * ### Path matching
  *
  * All paths use Spring [PathPattern][org.springframework.web.util.pattern.PathPattern] syntax.
@@ -182,12 +221,14 @@ class FiltersConfiguration(
  * @property refreshTokenPath Path where refresh tokens are accepted. All other paths reject them.
  * @property ignoredPaths Paths that bypass token authentication. Uses Spring PathPattern syntax. Mutually exclusive with [protectedPaths].
  * @property protectedPaths Paths that require token authentication; all others are skipped. Uses Spring PathPattern syntax. Mutually exclusive with [ignoredPaths].
+ * @property privilegeGates Path-scoped privilege requirements. Applied after authentication; throws [group.phorus.exception.handling.Forbidden] if no required privilege matches.
  */
 class TokenFilterConfiguration(
     var enabled: Boolean = false,
     var refreshTokenPath: String? = null,
     var ignoredPaths: List<Path> = emptyList(),
     var protectedPaths: List<Path> = emptyList(),
+    var privilegeGates: List<PrivilegeGate> = emptyList(),
 )
 
 /**

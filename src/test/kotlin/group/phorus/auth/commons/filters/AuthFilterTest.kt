@@ -3,7 +3,9 @@ package group.phorus.auth.commons.filters
 import group.phorus.auth.commons.config.AuthMode
 import group.phorus.auth.commons.config.MetricsRecorder
 import group.phorus.auth.commons.config.Path
+import group.phorus.auth.commons.config.PrivilegeGate
 import group.phorus.auth.commons.config.SecurityConfiguration
+import group.phorus.exception.handling.Forbidden
 import group.phorus.auth.commons.dtos.AuthData
 import group.phorus.auth.commons.dtos.TokenType
 import group.phorus.auth.commons.services.Authenticator
@@ -60,6 +62,7 @@ class AuthFilterTest {
             ignoredPaths: List<Path> = emptyList(),
             protectedPaths: List<Path> = emptyList(),
             refreshTokenPath: String? = null,
+            privilegeGates: List<PrivilegeGate> = emptyList(),
         ) = SecurityConfiguration(
             mode = mode,
         ).apply {
@@ -67,6 +70,7 @@ class AuthFilterTest {
             filters.token.ignoredPaths = ignoredPaths
             filters.token.protectedPaths = protectedPaths
             filters.token.refreshTokenPath = refreshTokenPath
+            filters.token.privilegeGates = privilegeGates
         }
 
         private fun mockAuthenticator(returnData: AuthData = ACCESS_AUTH_DATA): Authenticator {
@@ -443,6 +447,121 @@ class AuthFilterTest {
             assertThrows<IllegalArgumentException> {
                 AuthFilter(config, mockAuthenticator(), idpAuthenticatorProvider(), emptyMetricsProvider())
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("Privilege gates")
+    inner class PrivilegeGates {
+
+        private fun withPrivileges(vararg privileges: String) =
+            mockAuthenticator(ACCESS_AUTH_DATA.copy(privileges = privileges.toList()))
+
+        @Test
+        fun `allows access when user holds the required privilege`() {
+            val config = buildConfig(
+                privilegeGates = listOf(PrivilegeGate(path = "/api/test", privileges = listOf("admin"))),
+            )
+            val filter = AuthFilter(config, withPrivileges("admin"), idpAuthenticatorProvider(), emptyMetricsProvider())
+
+            invokeFilter(filter, buildExchange(path = "/api/test"))
+        }
+
+        @Test
+        fun `allows access when user holds any one of multiple listed privileges`() {
+            val config = buildConfig(
+                privilegeGates = listOf(PrivilegeGate(path = "/api/test", privileges = listOf("admin", "manager"))),
+            )
+            val filter = AuthFilter(config, withPrivileges("manager"), idpAuthenticatorProvider(), emptyMetricsProvider())
+
+            invokeFilter(filter, buildExchange(path = "/api/test"))
+        }
+
+        @Test
+        fun `throws Forbidden when user holds none of the required privileges`() {
+            val config = buildConfig(
+                privilegeGates = listOf(PrivilegeGate(path = "/api/test", privileges = listOf("admin", "manager"))),
+            )
+            val filter = AuthFilter(config, withPrivileges("read"), idpAuthenticatorProvider(), emptyMetricsProvider())
+
+            assertThrows<Forbidden> { invokeFilter(filter, buildExchange(path = "/api/test")) }
+        }
+
+        @Test
+        fun `does not apply gate when path does not match`() {
+            val config = buildConfig(
+                privilegeGates = listOf(PrivilegeGate(path = "/api/admin/**", privileges = listOf("admin"))),
+            )
+            val filter = AuthFilter(config, withPrivileges("read"), idpAuthenticatorProvider(), emptyMetricsProvider())
+
+            invokeFilter(filter, buildExchange(path = "/api/public"))
+        }
+
+        @Test
+        fun `wildcard gate matches all subpaths`() {
+            val config = buildConfig(
+                privilegeGates = listOf(PrivilegeGate(path = "/api/admin/**", privileges = listOf("admin"))),
+            )
+            val filter = AuthFilter(config, withPrivileges("read"), idpAuthenticatorProvider(), emptyMetricsProvider())
+
+            assertThrows<Forbidden> { invokeFilter(filter, buildExchange(path = "/api/admin/users")) }
+        }
+
+        @Test
+        fun `AND semantics denies when user satisfies first gate but not second`() {
+            val config = buildConfig(
+                privilegeGates = listOf(
+                    PrivilegeGate(path = "/api/test", privileges = listOf("admin")),
+                    PrivilegeGate(path = "/api/test", privileges = listOf("finance")),
+                ),
+            )
+            val filter = AuthFilter(config, withPrivileges("admin"), idpAuthenticatorProvider(), emptyMetricsProvider())
+
+            assertThrows<Forbidden> { invokeFilter(filter, buildExchange(path = "/api/test")) }
+        }
+
+        @Test
+        fun `AND semantics allows when user satisfies all matching gates`() {
+            val config = buildConfig(
+                privilegeGates = listOf(
+                    PrivilegeGate(path = "/api/test", privileges = listOf("admin")),
+                    PrivilegeGate(path = "/api/test", privileges = listOf("finance")),
+                ),
+            )
+            val filter = AuthFilter(config, withPrivileges("admin", "finance"), idpAuthenticatorProvider(), emptyMetricsProvider())
+
+            invokeFilter(filter, buildExchange(path = "/api/test"))
+        }
+
+        @Test
+        fun `method-specific gate fires only for the configured method`() {
+            val config = buildConfig(
+                privilegeGates = listOf(PrivilegeGate(path = "/api/test", method = "POST", privileges = listOf("admin"))),
+            )
+            val filter = AuthFilter(config, withPrivileges("read"), idpAuthenticatorProvider(), emptyMetricsProvider())
+
+            // GET bypasses the POST gate
+            invokeFilter(filter, buildExchange(path = "/api/test", method = HttpMethod.GET))
+        }
+
+        @Test
+        fun `method-specific gate applies to the configured method`() {
+            val config = buildConfig(
+                privilegeGates = listOf(PrivilegeGate(path = "/api/test", method = "POST", privileges = listOf("admin"))),
+            )
+            val filter = AuthFilter(config, withPrivileges("read"), idpAuthenticatorProvider(), emptyMetricsProvider())
+
+            assertThrows<Forbidden> { invokeFilter(filter, buildExchange(path = "/api/test", method = HttpMethod.POST)) }
+        }
+
+        @Test
+        fun `gate with empty privilege list has no effect`() {
+            val config = buildConfig(
+                privilegeGates = listOf(PrivilegeGate(path = "/api/test", privileges = emptyList())),
+            )
+            val filter = AuthFilter(config, withPrivileges(), idpAuthenticatorProvider(), emptyMetricsProvider())
+
+            invokeFilter(filter, buildExchange(path = "/api/test"))
         }
     }
 }
