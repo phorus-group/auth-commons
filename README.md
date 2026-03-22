@@ -1,11 +1,11 @@
 # Auth Commons
 
-> **DEPRECATED**: This library has been split into two focused libraries:
+> **DEPRECATED**: This library has been split into:
 >
-> - [`authn-core:1.0.0`](https://mvnrepository.com/artifact/group.phorus/authn-core): context objects, DTOs, and service interfaces. No Spring dependency.
-> - [`authn-spring-boot-starter:2.0.0`](https://mvnrepository.com/artifact/group.phorus/authn-spring-boot-starter): Spring Boot autoconfiguration, JWT filters, API key authentication.
+> - [`authn-core`](https://github.com/phorus-group/authn-core): Pure Kotlin authentication library. JWT token creation, validation, and key management with zero Spring dependencies.
+> - [`authn-spring-boot-starter`](https://github.com/phorus-group/authn-spring-boot-starter): Spring Boot autoconfiguration that wires authn-core as beans, plus WebFlux JWT filters, API key authentication, IdP integration, and password encoding.
 >
-> `auth-commons:2.0.10` is the final release. Migrate to `authn-core` + `authn-spring-boot-starter`.
+> This library will not receive further updates. Please migrate to the replacements above.
 
 [![GitHub license](https://img.shields.io/badge/license-Apache%20License%202.0-blue.svg?style=flat)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Maven Central](https://img.shields.io/maven-central/v/group.phorus/auth-commons)](https://mvnrepository.com/artifact/group.phorus/auth-commons)
