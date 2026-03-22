@@ -2,7 +2,7 @@
 
 > **DEPRECATED**: This library has been split into:
 >
-> - [`authn-core`](https://github.com/phorus-group/authn-core): Pure Kotlin authentication library. JWT token creation, validation, and key management with zero Spring dependencies.
+> - [`authn-core`](https://github.com/phorus-group/authn-core): Core authentication library. JWT token creation, validation, and key management.
 > - [`authn-spring-boot-starter`](https://github.com/phorus-group/authn-spring-boot-starter): Spring Boot autoconfiguration that wires authn-core as beans, plus WebFlux JWT filters, API key authentication, IdP integration, and password encoding.
 >
 > This library will not receive further updates. Please migrate to the replacements above.
